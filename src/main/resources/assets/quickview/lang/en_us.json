@@ -9,5 +9,6 @@
   "quickview.gui.main.add": "+",
   "quickview.gui.main.restore": "Restore",
   "quickview.gui.edit.title": "Edit Bookmark",
-  "quickview.gui.edit.name": "Name"
+  "quickview.gui.edit.name": "Name",
+  "quickview.gui.edit.set_current": "Set to Current"
 }

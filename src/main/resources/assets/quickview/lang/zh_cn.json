@@ -9,5 +9,6 @@
   "quickview.gui.main.add": "+",
   "quickview.gui.main.restore": "恢复视角",
   "quickview.gui.edit.title": "编辑书签",
-  "quickview.gui.edit.name": "名称"
+  "quickview.gui.edit.name": "名称",
+  "quickview.gui.edit.set_current": "设为当前"
 }

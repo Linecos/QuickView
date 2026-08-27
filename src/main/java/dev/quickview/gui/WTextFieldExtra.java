@@ -26,7 +26,10 @@ public class WTextFieldExtra extends WTextField {
     }
 
     @Override
-    public void onFocusGained() {
-        super.onFocusGained();
+    public void onFocusLost() {
+        super.onFocusLost();
+        if (focusLostCallback != null) {
+            focusLostCallback.accept(getText());
+        }
     }
 }
