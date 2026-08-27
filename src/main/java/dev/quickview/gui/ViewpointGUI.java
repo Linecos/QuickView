@@ -65,6 +65,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
                 panel.setData(new ArrayList<>(manager.getViewpoints()));
             } else {
                 manager.switchToViewpoint(vp);
+                MinecraftClient.getInstance().setScreen(null);
             }
         });
     }

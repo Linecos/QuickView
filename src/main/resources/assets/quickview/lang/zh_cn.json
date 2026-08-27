@@ -2,6 +2,7 @@
   "key.quickview.openMenu": "打开 QuickView 菜单",
   "key.quickview.restore": "恢复视角",
   "key.quickview.save": "快速保存视角",
+  "key.quickview.toggleMove": "切换自由移动",
   "category.quickview": "QuickView",
   "quickview.gui.main.search": "搜索...",
   "quickview.gui.main.edit": "编辑",
@@ -10,5 +11,7 @@
   "quickview.gui.main.restore": "恢复视角",
   "quickview.gui.edit.title": "编辑书签",
   "quickview.gui.edit.name": "名称",
-  "quickview.gui.edit.set_current": "设为当前"
+  "quickview.gui.edit.set_current": "设为当前",
+  "quickview.message.moveEnabled": "自由移动已开启",
+  "quickview.message.moveDisabled": "自由移动已关闭"
 }

@@ -7,12 +7,14 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 public class QuickViewKeybindings {
     private static KeyBinding openMenuKey;
     private static KeyBinding restoreKey;
     private static KeyBinding saveKey;
+    private static KeyBinding toggleMoveKey;
 
     public static void register() {
         KeyBinding.Category category = KeyBinding.Category.MISC;
@@ -25,6 +27,9 @@ public class QuickViewKeybindings {
         );
         saveKey = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding("key.quickview.save", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_N, category)
+        );
+        toggleMoveKey = KeyBindingHelper.registerKeyBinding(
+                new KeyBinding("key.quickview.toggleMove", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, category)
         );
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -48,6 +53,16 @@ public class QuickViewKeybindings {
                 manager.loadViewpoints();
                 int idx = manager.getViewpoints().size() + 1;
                 manager.addViewpoint("View " + idx);
+            }
+
+            if (toggleMoveKey.wasPressed()) {
+                manager.toggleFreeMove();
+                if (manager.isViewActive()) {
+                    String key = manager.isFreeMoveEnabled()
+                            ? "quickview.message.moveEnabled"
+                            : "quickview.message.moveDisabled";
+                    client.player.sendMessage(Text.translatable(key), true);
+                }
             }
         });
     }

@@ -1,7 +1,6 @@
 package dev.quickview.mixin;
 
 import dev.quickview.QuickViewManager;
-import dev.quickview.Viewpoint;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.world.World;
@@ -28,11 +27,8 @@ public abstract class CameraMixin {
         QuickViewManager manager = QuickViewManager.getInstance();
         if (!manager.isViewActive()) return;
 
-        Viewpoint vp = manager.getActiveViewpoint();
-        if (vp == null) return;
-
-        this.setPos(vp.getX(), vp.getY(), vp.getZ());
-        this.setRotation(vp.getYaw(), vp.getPitch());
+        this.setPos(manager.getFreeX(), manager.getFreeY(), manager.getFreeZ());
+        this.setRotation(manager.getFreeYaw(), manager.getFreePitch());
         this.thirdPerson = true;
     }
 }

@@ -15,7 +15,11 @@ public abstract class KeyboardInputMixin extends Input {
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void quickview$zeroMovement(CallbackInfo ci) {
-        if (!QuickViewManager.getInstance().isViewActive()) return;
+        QuickViewManager manager = QuickViewManager.getInstance();
+        if (!manager.isViewActive()) return;
+
+        PlayerInput input = this.playerInput;
+        manager.applyFreecamMovement(input);
         this.playerInput = PlayerInput.DEFAULT;
         this.movementVector = new Vec2f(0.0f, 0.0f);
     }
