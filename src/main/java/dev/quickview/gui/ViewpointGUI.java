@@ -41,9 +41,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
     }
 
     private WButton createEntry() {
-        WButton btn = new WButton(Text.literal(""));
-        btn.setSize(78, 20);
-        return btn;
+        return new WButton(Text.literal(""));
     }
 
     private void configureEntry(Viewpoint vp, WButton btn) {
@@ -73,9 +71,9 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.root.add(this.search, 1, 1, 68, 2);
         this.root.add(this.panel, 1, 6, 68, 34);
         this.root.add(this.addBtn, 1, 41, 4, 4);
-        this.root.add(this.editBtn, 6, 41, 4, 4);
-        this.root.add(this.deleteBtn, 11, 41, 4, 4);
-        this.root.add(this.restoreBtn, 30, 41, 10, 4);
+        this.root.add(this.editBtn, 6, 41, 6, 4);
+        this.root.add(this.deleteBtn, 13, 41, 6, 4);
+        this.root.add(this.restoreBtn, 55, 41, 10, 4);
         this.root.validate(this);
     }
 

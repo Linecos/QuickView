@@ -14,10 +14,14 @@ import java.util.stream.Collectors;
 
 public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
     private final WTextField search;
+    private static final int ROW_HEIGHT = 22;
+    private static final int COLS = 4;
+    private static final int COL_GAP = 5;
 
     public ViewpointListPanel(List<D> data, Supplier<W> supplier, BiConsumer<D, W> configurator, WTextField search) {
         super(data, supplier, configurator);
         this.search = search;
+        this.fixedHeight = true;
     }
 
     public void setData(List<D> newData) {
@@ -31,28 +35,12 @@ public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
     public void layout() {
         this.children.clear();
         this.children.add(scrollBar);
-        scrollBar.setLocation(this.width - scrollBar.getWidth(), 0);
-        scrollBar.setSize(8, this.height);
 
-        if (!fixedHeight) {
-            if (unconfigured.isEmpty()) {
-                if (configured.isEmpty()) {
-                    W exemplar = ((IWListPanel<W>) this).invokeCreateChild();
-                    unconfigured.add(exemplar);
-                    if (!exemplar.canResize()) cellHeight = exemplar.getHeight();
-                } else {
-                    W exemplar = configured.values().iterator().next();
-                    if (!exemplar.canResize()) cellHeight = exemplar.getHeight();
-                }
-            } else {
-                W exemplar = unconfigured.get(0);
-                if (!exemplar.canResize()) cellHeight = exemplar.getHeight();
-            }
-        }
-        if (cellHeight < 4) cellHeight = 4;
+        int panelWidth = this.width;
+        int panelHeight = this.height;
 
-        int layoutHeight = this.getHeight() - 4;
-        int cellsHigh = Math.max((layoutHeight + 2) / (cellHeight + 2), 1);
+        scrollBar.setLocation(panelWidth - 8, 0);
+        scrollBar.setSize(8, panelHeight);
 
         List<D> filteredData = new ArrayList<>(this.data);
         if (this.search != null && !this.search.getText().isEmpty()) {
@@ -62,43 +50,42 @@ public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
                     .collect(Collectors.toList());
         }
 
-        scrollBar.setWindow(cellsHigh);
-        scrollBar.setMaxValue(filteredData.size() > 32 ? filteredData.size() - 8 : 8);
-        int scrollOffset = scrollBar.getValue();
+        int totalRows = (int) Math.ceil((double) filteredData.size() / COLS);
+        int visibleRows = panelHeight / ROW_HEIGHT;
+        int maxScroll = Math.max(0, (totalRows - visibleRows) * ROW_HEIGHT);
 
-        int presentCells = Math.min(filteredData.size() - scrollOffset / 4 + 1, 32);
+        scrollBar.setWindow(panelHeight);
+        scrollBar.setMaxValue(maxScroll);
 
-        int offsetX = 0;
-        int offsetY = 0;
+        int scrollPixels = scrollBar.getValue();
 
-        if (presentCells > 0) {
-            for (int i = 0; i < presentCells; i++) {
-                int index = i + scrollOffset;
-                if (index >= filteredData.size()) break;
-                if (index < 0) continue;
-                D d = filteredData.get(index);
-                W w = configured.get(d);
-                if (w == null) {
-                    if (unconfigured.isEmpty()) {
-                        w = ((IWListPanel<W>) this).invokeCreateChild();
-                    } else {
-                        w = unconfigured.remove(0);
-                    }
-                    configured.put(d, w);
+        int btnWidth = (panelWidth - 8 - COL_GAP * (COLS - 1)) / COLS;
+
+        for (int i = 0; i < filteredData.size(); i++) {
+            int row = i / COLS;
+            int col = i % COLS;
+
+            int y = row * ROW_HEIGHT - scrollPixels;
+            if (y + ROW_HEIGHT < 0 || y > panelHeight) continue;
+
+            D d = filteredData.get(i);
+            W w = configured.get(d);
+            if (w == null) {
+                if (unconfigured.isEmpty()) {
+                    w = ((IWListPanel<W>) this).invokeCreateChild();
+                } else {
+                    w = unconfigured.remove(0);
                 }
-                configurator.accept(d, w);
-
-                ((IWWidget) w).setX((w.getWidth() + 5) * offsetX);
-                ((IWWidget) w).setY(offsetY * 22);
-                offsetX++;
-
-                if (offsetX >= 4) {
-                    offsetX = 0;
-                    offsetY++;
-                }
-
-                this.children.add(w);
+                configured.put(d, w);
             }
+            configurator.accept(d, w);
+
+            int x = col * (btnWidth + COL_GAP);
+            w.setSize(btnWidth, 20);
+            ((IWWidget) w).setX(x);
+            ((IWWidget) w).setY(y + 1);
+
+            this.children.add(w);
         }
     }
 }
