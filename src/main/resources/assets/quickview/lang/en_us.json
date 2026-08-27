@@ -7,6 +7,7 @@
   "quickview.gui.main.edit": "Edit",
   "quickview.gui.main.delete": "Delete",
   "quickview.gui.main.add": "+",
+  "quickview.gui.main.restore": "Restore",
   "quickview.gui.edit.title": "Edit Bookmark",
   "quickview.gui.edit.name": "Name"
 }

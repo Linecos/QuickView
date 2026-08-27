@@ -7,6 +7,7 @@
   "quickview.gui.main.edit": "编辑",
   "quickview.gui.main.delete": "删除",
   "quickview.gui.main.add": "+",
+  "quickview.gui.main.restore": "恢复视角",
   "quickview.gui.edit.title": "编辑书签",
   "quickview.gui.edit.name": "名称"
 }

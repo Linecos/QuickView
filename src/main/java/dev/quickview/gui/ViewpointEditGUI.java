@@ -13,7 +13,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private final Viewpoint viewpoint;
     private final int viewpointIndex;
     private final WTextFieldExtra nameField = new WTextFieldExtra()
-            .setSuggestion(Text.literal("Name"));
+            .setSuggestion(Text.translatable("quickview.gui.edit.name"));
     private final WLabel coordsLabel;
     private final QuickViewManager manager = QuickViewManager.getInstance();
 

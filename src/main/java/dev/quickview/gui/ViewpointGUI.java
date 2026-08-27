@@ -15,15 +15,17 @@ import java.util.List;
 
 public class ViewpointGUI extends LightweightGuiDescription {
     private final WTextFieldExtra search = new WTextFieldExtra()
-            .setSuggestion(Text.literal("Search..."));
-    private final WButton addBtn = new WButton(Text.literal("+"))
+            .setSuggestion(Text.translatable("quickview.gui.main.search"));
+    private final WButton addBtn = new WButton(Text.translatable("quickview.gui.main.add"))
             .setOnClick(this::addCallback);
-    private final WToggleButton editBtn = new WToggleButton(Text.literal("Edit"))
+    private final WToggleButton editBtn = new WToggleButton(Text.translatable("quickview.gui.main.edit"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::editBtnCallback);
-    private final WToggleButton deleteBtn = new WToggleButton(Text.literal("Delete"))
+    private final WToggleButton deleteBtn = new WToggleButton(Text.translatable("quickview.gui.main.delete"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::deleteBtnCallback);
+    private final WButton restoreBtn = new WButton(Text.translatable("quickview.gui.main.restore"))
+            .setOnClick(this::restoreCallback);
 
     private final ViewpointListPanel<Viewpoint, WButton> panel;
     private final WGridPanel root = new WGridPanel(5);
@@ -39,7 +41,9 @@ public class ViewpointGUI extends LightweightGuiDescription {
     }
 
     private WButton createEntry() {
-        return new WButton(Text.literal(""));
+        WButton btn = new WButton(Text.literal(""));
+        btn.setSize(78, 20);
+        return btn;
     }
 
     private void configureEntry(Viewpoint vp, WButton btn) {
@@ -67,10 +71,11 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void setupRoot() {
         this.root.setSize(350, 240);
         this.root.add(this.search, 1, 1, 68, 2);
-        this.root.add(this.panel, 1, 6, 68, 36);
-        this.root.add(this.addBtn, 1, 43, 4, 4);
-        this.root.add(this.editBtn, 6, 43, 4, 4);
-        this.root.add(this.deleteBtn, 25, 43, 4, 4);
+        this.root.add(this.panel, 1, 6, 68, 34);
+        this.root.add(this.addBtn, 1, 41, 4, 4);
+        this.root.add(this.editBtn, 6, 41, 4, 4);
+        this.root.add(this.deleteBtn, 11, 41, 4, 4);
+        this.root.add(this.restoreBtn, 30, 41, 10, 4);
         this.root.validate(this);
     }
 
@@ -80,6 +85,10 @@ public class ViewpointGUI extends LightweightGuiDescription {
         manager.loadViewpoints();
         panel.setData(new ArrayList<>(manager.getViewpoints()));
         panel.layout();
+    }
+
+    private void restoreCallback() {
+        manager.restore();
     }
 
     private void editBtnCallback(Boolean toggled) {
