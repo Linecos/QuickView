@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "quickview",
+  "version": "${version}",
+  "name": "QuickView",
+  "description": "视角书签系统：保存相机机位，一键瞬间切换视角，一键恢复本体视角，期间玩家本体保持原位。",
+  "authors": [
+    "QuickView"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.quickview.QuickViewClient"
+    ]
+  },
+  "mixins": [
+    "quickview.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.17.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.11",
+    "java": ">=21"
+  }
+}
