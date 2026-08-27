@@ -20,6 +20,9 @@ public abstract class CameraMixin {
     @Shadow
     protected abstract void setRotation(float yaw, float pitch);
 
+    @Shadow
+    private boolean thirdPerson;
+
     @Inject(method = "update", at = @At("TAIL"))
     private void quickview$overrideViewpoint(World world, Entity entity, boolean thirdPerson, boolean inverseView, float tickProgress, CallbackInfo ci) {
         QuickViewManager manager = QuickViewManager.getInstance();
@@ -30,5 +33,6 @@ public abstract class CameraMixin {
 
         this.setPos(vp.getX(), vp.getY(), vp.getZ());
         this.setRotation(vp.getYaw(), vp.getPitch());
+        this.thirdPerson = true;
     }
 }

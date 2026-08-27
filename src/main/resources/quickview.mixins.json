@@ -10,6 +10,7 @@
     "CameraMixin",
     "KeyboardInputMixin",
     "EntityMixin",
+    "HeldItemRendererMixin",
     "IWListPanel",
     "IWWidget"
   ]
