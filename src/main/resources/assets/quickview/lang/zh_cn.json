@@ -2,5 +2,11 @@
   "key.quickview.openMenu": "打开 QuickView 菜单",
   "key.quickview.restore": "恢复视角",
   "key.quickview.save": "快速保存视角",
-  "category.quickview": "QuickView"
+  "category.quickview": "QuickView",
+  "quickview.gui.main.search": "搜索...",
+  "quickview.gui.main.edit": "编辑",
+  "quickview.gui.main.delete": "删除",
+  "quickview.gui.main.add": "+",
+  "quickview.gui.edit.title": "编辑书签",
+  "quickview.gui.edit.name": "名称"
 }

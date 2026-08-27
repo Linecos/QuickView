@@ -1,6 +1,7 @@
 package dev.quickview;
 
-import dev.quickview.gui.ViewpointScreen;
+import dev.quickview.gui.ViewpointGUI;
+import dev.quickview.gui.WrapperViewpointScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
@@ -33,7 +34,10 @@ public class QuickViewKeybindings {
 
             if (openMenuKey.wasPressed()) {
                 manager.loadViewpoints();
-                MinecraftClient.getInstance().setScreen(new ViewpointScreen());
+                ViewpointGUI gui = new ViewpointGUI();
+                WrapperViewpointScreen screen = new WrapperViewpointScreen(gui);
+                screen.setParent(MinecraftClient.getInstance().currentScreen);
+                MinecraftClient.getInstance().setScreen(screen);
             }
 
             if (restoreKey.wasPressed() && manager.isViewActive()) {
