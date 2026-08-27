@@ -47,7 +47,7 @@ public class QuickViewKeybindings {
             if (saveKey.wasPressed() && !manager.isViewActive()) {
                 manager.loadViewpoints();
                 int idx = manager.getViewpoints().size() + 1;
-                manager.addViewpoint("Bookmark " + idx);
+                manager.addViewpoint("View " + idx);
             }
         });
     }

@@ -71,6 +71,23 @@ public class QuickViewManager {
         saveViewpoints();
     }
 
+    public Viewpoint createViewpoint(String name) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayerEntity player = client.player;
+        if (player == null) return null;
+
+        double x = player.getX();
+        double y = player.getY() + player.getStandingEyeHeight();
+        double z = player.getZ();
+        float yaw = player.getYaw();
+        float pitch = player.getPitch();
+
+        Viewpoint vp = new Viewpoint(name, currentDimension, x, y, z, yaw, pitch);
+        viewpoints.add(vp);
+        saveViewpoints();
+        return vp;
+    }
+
     public void removeViewpoint(int index) {
         if (index >= 0 && index < viewpoints.size()) {
             viewpoints.remove(index);

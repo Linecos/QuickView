@@ -22,13 +22,13 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.viewpointIndex = viewpointIndex;
         this.coordsLabel = new WLabel(Text.literal(viewpoint.getFormattedCoords() + "  " + viewpoint.getFormattedRotation()));
         this.nameField.setText(viewpoint.getName());
-        this.nameField.setFocusLostCallback(newName -> {
-            if (!newName.trim().isEmpty()) {
-                manager.renameViewpoint(viewpointIndex, newName.trim());
-            }
-        });
+        this.nameField.setFocusLostCallback(this::onNameFieldFocusLost);
         this.setupRoot();
         this.setRootPanel(root);
+    }
+
+    private void onNameFieldFocusLost(String newName) {
+        manager.renameViewpoint(viewpointIndex, newName);
     }
 
     private void setupRoot() {
@@ -39,7 +39,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     public void saveData() {
-        manager.saveViewpoints();
+        String name = nameField.getText();
+        manager.renameViewpoint(viewpointIndex, name);
     }
 
     @Override

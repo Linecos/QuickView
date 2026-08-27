@@ -37,7 +37,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.panel = new ViewpointListPanel<>(data, this::createEntry, this::configureEntry, this.search);
         this.setupRoot();
         this.setRootPanel(root);
-        this.search.setChangedListener(s -> this.panel.layout());
+        this.search.setChangedListener(s -> this.panel.applyFilter());
     }
 
     private WButton createEntry() {
@@ -48,10 +48,14 @@ public class ViewpointGUI extends LightweightGuiDescription {
         btn.setLabel(Text.literal(vp.getName()));
         btn.setOnClick(() -> {
             if (editBtn.getToggle()) {
-                ViewpointEditGUI editGui = new ViewpointEditGUI(vp, manager.getViewpoints().indexOf(vp));
+                int idx = manager.getViewpoints().indexOf(vp);
+                ViewpointEditGUI editGui = new ViewpointEditGUI(vp, idx);
                 WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
-                screen.setCloseCallback(editGui::saveData);
-                screen.setReturnAction(this.panel::layout);
+                screen.setCloseCallback(() -> {
+                    editGui.saveData();
+                    manager.loadViewpoints();
+                    panel.setData(new ArrayList<>(manager.getViewpoints()));
+                });
                 screen.setParent(MinecraftClient.getInstance().currentScreen);
                 MinecraftClient.getInstance().setScreen(screen);
             } else if (deleteBtn.getToggle()) {
@@ -59,7 +63,6 @@ public class ViewpointGUI extends LightweightGuiDescription {
                 manager.removeViewpoint(idx);
                 manager.loadViewpoints();
                 panel.setData(new ArrayList<>(manager.getViewpoints()));
-                panel.layout();
             } else {
                 manager.switchToViewpoint(vp);
             }
@@ -71,18 +74,24 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.root.add(this.search, 1, 1, 68, 2);
         this.root.add(this.panel, 1, 6, 68, 34);
         this.root.add(this.addBtn, 1, 41, 4, 4);
-        this.root.add(this.editBtn, 6, 41, 6, 4);
-        this.root.add(this.deleteBtn, 13, 41, 6, 4);
+        this.root.add(this.editBtn, 8, 41, 8, 4);
+        this.root.add(this.deleteBtn, 17, 41, 8, 4);
         this.root.add(this.restoreBtn, 55, 41, 10, 4);
         this.root.validate(this);
     }
 
     private void addCallback() {
-        int idx = manager.getViewpoints().size() + 1;
-        manager.addViewpoint("Bookmark " + idx);
-        manager.loadViewpoints();
-        panel.setData(new ArrayList<>(manager.getViewpoints()));
-        panel.layout();
+        Viewpoint vp = manager.createViewpoint("");
+        int idx = manager.getViewpoints().indexOf(vp);
+        ViewpointEditGUI editGui = new ViewpointEditGUI(vp, idx);
+        WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
+        screen.setCloseCallback(() -> {
+            editGui.saveData();
+            manager.loadViewpoints();
+            panel.setData(new ArrayList<>(manager.getViewpoints()));
+        });
+        screen.setParent(MinecraftClient.getInstance().currentScreen);
+        MinecraftClient.getInstance().setScreen(screen);
     }
 
     private void restoreCallback() {
