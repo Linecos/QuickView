@@ -2,12 +2,9 @@ package dev.quickview.gui;
 
 import dev.quickview.mixin.IWListPanel;
 import dev.quickview.mixin.IWWidget;
-import io.github.cottonmc.cotton.gui.client.ScreenDrawing;
 import io.github.cottonmc.cotton.gui.widget.WListPanel;
 import io.github.cottonmc.cotton.gui.widget.WTextField;
 import io.github.cottonmc.cotton.gui.widget.WWidget;
-import io.github.cottonmc.cotton.gui.widget.data.InputResult;
-import net.minecraft.client.gui.DrawContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +15,6 @@ import java.util.stream.Collectors;
 public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
     private final WTextField search;
     private final List<D> allData;
-    private int lastScrollValue = -1;
     private static final int ROW_HEIGHT = 22;
     private static final int COLS = 4;
     private static final int COL_GAP = 5;
@@ -27,6 +23,7 @@ public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
         super(new ArrayList<>(data), supplier, configurator);
         this.allData = data;
         this.search = search;
+        scrollBar.setScrollingSpeed(8);
     }
 
     public void setData(List<D> newData) {
@@ -48,17 +45,7 @@ public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
         }
         this.configured.clear();
         this.scrollBar.setValue(0);
-        this.lastScrollValue = -1;
         this.layout();
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        if (scrollBar.getValue() != lastScrollValue) {
-            lastScrollValue = scrollBar.getValue();
-            relayoutItems();
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -86,58 +73,40 @@ public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
         }
         if (cellHeight < 4) cellHeight = 4;
 
-        int layoutHeight = this.getHeight() - 4;
-        int cellsHigh = Math.max((layoutHeight + 2) / (cellHeight + 2), 1);
+        int totalRows = (int) Math.ceil((double) data.size() / COLS);
+        int contentHeight = totalRows * ROW_HEIGHT;
 
-        scrollBar.setWindow(cellsHigh);
-        scrollBar.setMaxValue(data.size() > 32 ? data.size() - 8 : 8);
+        scrollBar.setWindow(this.height);
+        scrollBar.setMaxValue(Math.max(contentHeight, this.height));
 
-        relayoutItems();
-    }
-
-    @SuppressWarnings("unchecked")
-    private void relayoutItems() {
-        this.children.clear();
-        this.children.add(scrollBar);
-
-        int panelHeight = this.height;
-        int scrollOffset = scrollBar.getValue();
+        int scrollPixels = scrollBar.getValue();
         int btnWidth = (this.width - scrollBar.getWidth() - COL_GAP * (COLS - 1)) / COLS;
 
-        int presentCells = Math.min(data.size() - scrollOffset / 4 + 1, 32);
+        for (int i = 0; i < data.size(); i++) {
+            int row = i / COLS;
+            int col = i % COLS;
 
-        int offsetX = 0;
-        int offsetY = 0;
+            int y = row * ROW_HEIGHT - scrollPixels;
+            if (y + ROW_HEIGHT < 0 || y > this.height) continue;
 
-        if (presentCells > 0) {
-            for (int i = 0; i < presentCells; i++) {
-                int index = i + scrollOffset;
-                if (index >= data.size()) break;
-                if (index < 0) continue;
-                D d = data.get(index);
-                W w = configured.get(d);
-                if (w == null) {
-                    if (unconfigured.isEmpty()) {
-                        w = ((IWListPanel<W>) this).invokeCreateChild();
-                    } else {
-                        w = unconfigured.remove(0);
-                    }
-                    configured.put(d, w);
+            D d = data.get(i);
+            W w = configured.get(d);
+            if (w == null) {
+                if (unconfigured.isEmpty()) {
+                    w = ((IWListPanel<W>) this).invokeCreateChild();
+                } else {
+                    w = unconfigured.remove(0);
                 }
                 configurator.accept(d, w);
-
-                w.setSize(btnWidth, 20);
-                ((IWWidget) w).setX((w.getWidth() + COL_GAP) * offsetX);
-                ((IWWidget) w).setY(offsetY * ROW_HEIGHT);
-                offsetX++;
-
-                if (offsetX >= COLS) {
-                    offsetX = 0;
-                    offsetY++;
-                }
-
-                this.children.add(w);
+                configured.put(d, w);
             }
+
+            int x = col * (btnWidth + COL_GAP);
+            w.setSize(btnWidth, 20);
+            ((IWWidget) w).setX(x);
+            ((IWWidget) w).setY(y + 1);
+
+            this.children.add(w);
         }
     }
 }
