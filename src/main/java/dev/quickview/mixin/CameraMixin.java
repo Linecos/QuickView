@@ -27,7 +27,12 @@ public abstract class CameraMixin {
         QuickViewManager manager = QuickViewManager.getInstance();
         if (!manager.isViewActive()) return;
 
-        this.setPos(manager.getFreeX(), manager.getFreeY(), manager.getFreeZ());
+        double t = tickProgress;
+        double x = manager.getPrevFreeX() + (manager.getFreeX() - manager.getPrevFreeX()) * t;
+        double y = manager.getPrevFreeY() + (manager.getFreeY() - manager.getPrevFreeY()) * t;
+        double z = manager.getPrevFreeZ() + (manager.getFreeZ() - manager.getPrevFreeZ()) * t;
+
+        this.setPos(x, y, z);
         this.setRotation(manager.getFreeYaw(), manager.getFreePitch());
         this.thirdPerson = true;
     }

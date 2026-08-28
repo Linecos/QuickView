@@ -13,8 +13,10 @@ import java.util.List;
 
 public class QuickViewManager {
     private static final QuickViewManager INSTANCE = new QuickViewManager();
-    private static final double FLY_SPEED = 0.25;
-    private static final double FLY_SPEED_FAST = 0.6;
+    private static final double MOVE_RAMP = 0.15;
+    private static final double MOVE_DECELERATION = 0.4;
+    private static final double MOVE_SPEED = 0.7;
+    private static final double SPRINT_MULTIPLIER = 3.0;
 
     private List<Viewpoint> viewpoints = new ArrayList<>();
     private Viewpoint activeViewpoint;
@@ -27,6 +29,16 @@ public class QuickViewManager {
     private double freeZ;
     private float freeYaw;
     private float freePitch;
+
+    private double prevX;
+    private double prevY;
+    private double prevZ;
+    private float prevYaw;
+    private float prevPitch;
+
+    private double velForward;
+    private double velStrafe;
+    private double velVertical;
 
     private QuickViewManager() {
     }
@@ -71,6 +83,36 @@ public class QuickViewManager {
         return freePitch;
     }
 
+    public double getPrevFreeX() {
+        return prevX;
+    }
+
+    public double getPrevFreeY() {
+        return prevY;
+    }
+
+    public double getPrevFreeZ() {
+        return prevZ;
+    }
+
+    public float getPrevFreeYaw() {
+        return prevYaw;
+    }
+
+    public float getPrevFreePitch() {
+        return prevPitch;
+    }
+
+    public void onTickStart() {
+        if (!viewActive) return;
+
+        prevX = freeX;
+        prevY = freeY;
+        prevZ = freeZ;
+        prevYaw = freeYaw;
+        prevPitch = freePitch;
+    }
+
     public void applyFreecamLook(double cursorDeltaX, double cursorDeltaY) {
         if (!viewActive || !freeMoveEnabled) return;
 
@@ -80,38 +122,58 @@ public class QuickViewManager {
     }
 
     public void applyFreecamMovement(PlayerInput input) {
-        if (!viewActive || !freeMoveEnabled) return;
+        if (!viewActive) return;
 
-        double forward = (input.forward() ? 1.0 : 0.0) - (input.backward() ? 1.0 : 0.0);
-        double strafe = (input.right() ? 1.0 : 0.0) - (input.left() ? 1.0 : 0.0);
-        double vertical = (input.jump() ? 1.0 : 0.0) - (input.sneak() ? 1.0 : 0.0);
+        int forward = 0;
+        int strafe = 0;
+        int vertical = 0;
 
-        if (forward == 0.0 && strafe == 0.0 && vertical == 0.0) return;
-
-        double horizontalLength = Math.sqrt(forward * forward + strafe * strafe);
-        if (horizontalLength > 0.0) {
-            forward /= horizontalLength;
-            strafe /= horizontalLength;
+        if (freeMoveEnabled) {
+            if (input.forward()) forward += 1;
+            if (input.backward()) forward -= 1;
+            if (input.right()) strafe += 1;
+            if (input.left()) strafe -= 1;
+            if (input.jump()) vertical += 1;
+            if (input.sneak()) vertical -= 1;
         }
 
+        boolean sprint = freeMoveEnabled && input.sprint();
+
+        double diagonal = (forward != 0 && strafe != 0) ? 1.2 : 1.0;
+        velForward = rampVelocity(velForward, forward) / diagonal;
+        velStrafe = rampVelocity(velStrafe, strafe) / diagonal;
+        velVertical = rampVelocity(velVertical, vertical);
+
         double yaw = Math.toRadians(freeYaw);
-        double pitch = Math.toRadians(freePitch);
         double cosYaw = Math.cos(yaw);
         double sinYaw = Math.sin(yaw);
-        double cosPitch = Math.cos(pitch);
-        double sinPitch = Math.sin(pitch);
 
-        double fx = -sinYaw * cosPitch;
-        double fy = -sinPitch;
-        double fz = cosYaw * cosPitch;
+        double fx = -sinYaw;
+        double fz = cosYaw;
         double rx = -cosYaw;
         double rz = -sinYaw;
 
-        double speed = input.sprint() ? FLY_SPEED_FAST : FLY_SPEED;
+        double forwardFactor = sprint ? velForward * SPRINT_MULTIPLIER : velForward;
 
-        freeX += (fx * forward + rx * strafe) * speed;
-        freeY += (fy * forward + vertical) * speed;
-        freeZ += (fz * forward + rz * strafe) * speed;
+        freeX += (fx * forwardFactor + rx * velStrafe) * MOVE_SPEED;
+        freeY += velVertical * MOVE_SPEED;
+        freeZ += (fz * forwardFactor + rz * velStrafe) * MOVE_SPEED;
+    }
+
+    private double rampVelocity(double current, int input) {
+        if (input != 0) {
+            double ramp = MOVE_RAMP;
+            if (input < 0) {
+                ramp = -MOVE_RAMP;
+            }
+            if ((input < 0) != (current < 0.0)) {
+                current = 0.0;
+            }
+            current = Math.max(-1.0, Math.min(1.0, current + ramp));
+        } else {
+            current *= MOVE_DECELERATION;
+        }
+        return current;
     }
 
     public List<Viewpoint> getViewpoints() {
@@ -196,10 +258,21 @@ public class QuickViewManager {
         freeZ = vp.getZ();
         freeYaw = vp.getYaw();
         freePitch = vp.getPitch();
+        prevX = freeX;
+        prevY = freeY;
+        prevZ = freeZ;
+        prevYaw = freeYaw;
+        prevPitch = freePitch;
+        velForward = 0.0;
+        velStrafe = 0.0;
+        velVertical = 0.0;
     }
 
     public void restore() {
         viewActive = false;
         activeViewpoint = null;
+        velForward = 0.0;
+        velStrafe = 0.0;
+        velVertical = 0.0;
     }
 }

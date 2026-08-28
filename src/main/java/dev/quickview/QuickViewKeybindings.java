@@ -32,6 +32,8 @@ public class QuickViewKeybindings {
                 new KeyBinding("key.quickview.toggleMove", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, category)
         );
 
+        ClientTickEvents.START_CLIENT_TICK.register(client -> QuickViewManager.getInstance().onTickStart());
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;
 
