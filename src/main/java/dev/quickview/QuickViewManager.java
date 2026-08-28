@@ -2,6 +2,7 @@ package dev.quickview;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.option.Perspective;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.Identifier;
@@ -33,8 +34,8 @@ public class QuickViewManager {
     private double prevX;
     private double prevY;
     private double prevZ;
-    private float prevYaw;
-    private float prevPitch;
+
+    private Perspective savedPerspective;
 
     private double velForward;
     private double velStrafe;
@@ -95,22 +96,12 @@ public class QuickViewManager {
         return prevZ;
     }
 
-    public float getPrevFreeYaw() {
-        return prevYaw;
-    }
-
-    public float getPrevFreePitch() {
-        return prevPitch;
-    }
-
     public void onTickStart() {
         if (!viewActive) return;
 
         prevX = freeX;
         prevY = freeY;
         prevZ = freeZ;
-        prevYaw = freeYaw;
-        prevPitch = freePitch;
     }
 
     public void applyFreecamLook(double cursorDeltaX, double cursorDeltaY) {
@@ -261,14 +252,20 @@ public class QuickViewManager {
         prevX = freeX;
         prevY = freeY;
         prevZ = freeZ;
-        prevYaw = freeYaw;
-        prevPitch = freePitch;
         velForward = 0.0;
         velStrafe = 0.0;
         velVertical = 0.0;
+
+        savedPerspective = client.options.getPerspective();
+        client.options.setPerspective(Perspective.FIRST_PERSON);
     }
 
     public void restore() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (savedPerspective != null) {
+            client.options.setPerspective(savedPerspective);
+            savedPerspective = null;
+        }
         viewActive = false;
         activeViewpoint = null;
         velForward = 0.0;

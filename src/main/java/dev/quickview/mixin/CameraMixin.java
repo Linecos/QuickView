@@ -1,6 +1,8 @@
 package dev.quickview.mixin;
 
 import dev.quickview.QuickViewManager;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.Perspective;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.world.World;
@@ -31,9 +33,37 @@ public abstract class CameraMixin {
         double x = manager.getPrevFreeX() + (manager.getFreeX() - manager.getPrevFreeX()) * t;
         double y = manager.getPrevFreeY() + (manager.getFreeY() - manager.getPrevFreeY()) * t;
         double z = manager.getPrevFreeZ() + (manager.getFreeZ() - manager.getPrevFreeZ()) * t;
+        float yaw = manager.getFreeYaw();
+        float pitch = manager.getFreePitch();
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        Perspective perspective = client.options.getPerspective();
+        boolean showBody = !perspective.isFirstPerson();
+
+        if (showBody) {
+            double distance = 4.0;
+            double yawRad = Math.toRadians(yaw);
+            double pitchRad = Math.toRadians(pitch);
+            double cosPitch = Math.cos(pitchRad);
+            double forwardX = -Math.sin(yawRad) * cosPitch;
+            double forwardY = -Math.sin(pitchRad);
+            double forwardZ = Math.cos(yawRad) * cosPitch;
+
+            if (perspective.isFrontView()) {
+                x += forwardX * distance;
+                y += forwardY * distance;
+                z += forwardZ * distance;
+                yaw += 180.0f;
+                pitch = -pitch;
+            } else {
+                x -= forwardX * distance;
+                y -= forwardY * distance;
+                z -= forwardZ * distance;
+            }
+        }
 
         this.setPos(x, y, z);
-        this.setRotation(manager.getFreeYaw(), manager.getFreePitch());
+        this.setRotation(yaw, pitch);
         this.thirdPerson = true;
     }
 }
