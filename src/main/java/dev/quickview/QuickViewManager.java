@@ -2,6 +2,7 @@ package dev.quickview;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.network.ServerInfo;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.registry.RegistryKey;
@@ -21,6 +22,7 @@ public class QuickViewManager {
 
     private List<Viewpoint> viewpoints = new ArrayList<>();
     private Viewpoint activeViewpoint;
+    private String currentContext = "";
     private String currentDimension = "";
     private boolean viewActive = false;
     private boolean freeMoveEnabled = true;
@@ -175,6 +177,10 @@ public class QuickViewManager {
         return currentDimension;
     }
 
+    public String getCurrentContext() {
+        return currentContext;
+    }
+
     public void loadViewpoints() {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientWorld world = client.world;
@@ -183,11 +189,27 @@ public class QuickViewManager {
         RegistryKey<World> dimKey = world.getRegistryKey();
         Identifier dimId = dimKey.getValue();
         currentDimension = dimId.toString();
-        viewpoints = ViewpointStorage.load(currentDimension);
+        currentContext = resolveContext(client);
+        viewpoints = ViewpointStorage.load(currentContext, currentDimension);
     }
 
     public void saveViewpoints() {
-        ViewpointStorage.save(currentDimension, viewpoints);
+        ViewpointStorage.save(currentContext, currentDimension, viewpoints);
+    }
+
+    private static String resolveContext(MinecraftClient client) {
+        ServerInfo entry = client.getCurrentServerEntry();
+        if (entry != null) {
+            String address = entry.address;
+            if (address != null && !address.isEmpty()) {
+                return address;
+            }
+            return entry.name;
+        }
+        if (client.getServer() != null) {
+            return client.getServer().getSaveProperties().getLevelName();
+        }
+        return "unknown";
     }
 
     public void addViewpoint(String name) {
