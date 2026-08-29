@@ -94,11 +94,14 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) return;
 
-        viewpoint.setX(client.player.getX());
-        viewpoint.setY(client.player.getY() + client.player.getStandingEyeHeight());
-        viewpoint.setZ(client.player.getZ());
-        viewpoint.setYaw(client.player.getYaw());
-        viewpoint.setPitch(client.player.getPitch());
+        Viewpoint snapshot = manager.captureViewSnapshot("");
+        if (snapshot == null) return;
+
+        viewpoint.setX(snapshot.getX());
+        viewpoint.setY(snapshot.getY());
+        viewpoint.setZ(snapshot.getZ());
+        viewpoint.setYaw(snapshot.getYaw());
+        viewpoint.setPitch(snapshot.getPitch());
 
         xField.setText(String.format("%.1f", viewpoint.getX()));
         yField.setText(String.format("%.1f", viewpoint.getY()));

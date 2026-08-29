@@ -15,6 +15,7 @@ public class QuickViewKeybindings {
     private static KeyBinding restoreKey;
     private static KeyBinding saveKey;
     private static KeyBinding toggleMoveKey;
+    private static KeyBinding toggleFreecamPriorityKey;
 
     public static void register() {
         KeyBinding.Category category = KeyBinding.Category.MISC;
@@ -30,6 +31,9 @@ public class QuickViewKeybindings {
         );
         toggleMoveKey = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding("key.quickview.toggleMove", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G, category)
+        );
+        toggleFreecamPriorityKey = KeyBindingHelper.registerKeyBinding(
+                new KeyBinding("key.quickview.toggleFreecamPriority", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, category)
         );
 
         ClientTickEvents.START_CLIENT_TICK.register(client -> QuickViewManager.getInstance().onTickStart());
@@ -65,6 +69,14 @@ public class QuickViewKeybindings {
                             : "quickview.message.moveDisabled";
                     client.player.sendMessage(Text.translatable(key), true);
                 }
+            }
+
+            if (toggleFreecamPriorityKey.wasPressed()) {
+                manager.togglePreferFreecam();
+                String key = manager.isPreferFreecam()
+                        ? "quickview.message.freecamPriorityEnabled"
+                        : "quickview.message.freecamPriorityDisabled";
+                client.player.sendMessage(Text.translatable(key), true);
             }
         });
     }

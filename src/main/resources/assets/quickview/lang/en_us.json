@@ -3,6 +3,7 @@
   "key.quickview.restore": "Restore View",
   "key.quickview.save": "Quick Save Viewpoint",
   "key.quickview.toggleMove": "Toggle Free Move",
+  "key.quickview.toggleFreecamPriority": "Toggle Freecam Priority",
   "category.quickview": "QuickView",
   "quickview.gui.main.search": "Search...",
   "quickview.gui.main.edit": "Edit",
@@ -13,5 +14,7 @@
   "quickview.gui.edit.name": "Name",
   "quickview.gui.edit.set_current": "Set to Current",
   "quickview.message.moveEnabled": "Free move enabled",
-  "quickview.message.moveDisabled": "Free move disabled"
+  "quickview.message.moveDisabled": "Free move disabled",
+  "quickview.message.freecamPriorityEnabled": "Freecam priority enabled",
+  "quickview.message.freecamPriorityDisabled": "Freecam priority disabled"
 }

@@ -3,6 +3,7 @@
   "key.quickview.restore": "恢复视角",
   "key.quickview.save": "快速保存视角",
   "key.quickview.toggleMove": "切换自由移动",
+  "key.quickview.toggleFreecamPriority": "切换灵魂出窍优先",
   "category.quickview": "QuickView",
   "quickview.gui.main.search": "搜索...",
   "quickview.gui.main.edit": "编辑",
@@ -13,5 +14,7 @@
   "quickview.gui.edit.name": "名称",
   "quickview.gui.edit.set_current": "设为当前",
   "quickview.message.moveEnabled": "自由移动已开启",
-  "quickview.message.moveDisabled": "自由移动已关闭"
+  "quickview.message.moveDisabled": "自由移动已关闭",
+  "quickview.message.freecamPriorityEnabled": "灵魂出窍优先已开启",
+  "quickview.message.freecamPriorityDisabled": "灵魂出窍优先已关闭"
 }

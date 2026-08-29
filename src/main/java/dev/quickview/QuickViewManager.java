@@ -5,9 +5,11 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ServerInfo;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.entity.Entity;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.PlayerInput;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ public class QuickViewManager {
     private String currentDimension = "";
     private boolean viewActive = false;
     private boolean freeMoveEnabled = true;
+    private boolean preferFreecam = false;
 
     private double freeX;
     private double freeY;
@@ -64,6 +67,14 @@ public class QuickViewManager {
 
     public void toggleFreeMove() {
         freeMoveEnabled = !freeMoveEnabled;
+    }
+
+    public boolean isPreferFreecam() {
+        return preferFreecam;
+    }
+
+    public void togglePreferFreecam() {
+        preferFreecam = !preferFreecam;
     }
 
     public double getFreeX() {
@@ -214,35 +225,40 @@ public class QuickViewManager {
 
     public void addViewpoint(String name) {
         MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null) return;
+        if (client.player == null) return;
 
-        double x = player.getX();
-        double y = player.getY() + player.getStandingEyeHeight();
-        double z = player.getZ();
-        float yaw = player.getYaw();
-        float pitch = player.getPitch();
-
-        Viewpoint vp = new Viewpoint(name, currentDimension, x, y, z, yaw, pitch);
+        Viewpoint vp = captureViewSnapshot(name);
+        if (vp == null) return;
         viewpoints.add(vp);
         saveViewpoints();
     }
 
     public Viewpoint createViewpoint(String name) {
         MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null) return null;
+        if (client.player == null) return null;
 
-        double x = player.getX();
-        double y = player.getY() + player.getStandingEyeHeight();
-        double z = player.getZ();
-        float yaw = player.getYaw();
-        float pitch = player.getPitch();
-
-        Viewpoint vp = new Viewpoint(name, currentDimension, x, y, z, yaw, pitch);
+        Viewpoint vp = captureViewSnapshot(name);
+        if (vp == null) return null;
         viewpoints.add(vp);
         saveViewpoints();
         return vp;
+    }
+
+    public Viewpoint captureViewSnapshot(String name) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        Entity entity = resolveViewEntity(client);
+        if (entity == null) return null;
+
+        Vec3d eye = entity.getEyePos();
+        return new Viewpoint(name, currentDimension, eye.x, eye.y, eye.z, entity.getYaw(), entity.getPitch());
+    }
+
+    private Entity resolveViewEntity(MinecraftClient client) {
+        Entity cameraEntity = client.getCameraEntity();
+        if (preferFreecam && cameraEntity != null && cameraEntity != client.player) {
+            return cameraEntity;
+        }
+        return client.player;
     }
 
     public void removeViewpoint(int index) {
