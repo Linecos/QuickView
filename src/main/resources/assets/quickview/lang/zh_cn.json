@@ -18,6 +18,7 @@
   "quickview.gui.settings.option.free_move": "自由移动",
   "quickview.gui.settings.option.freecam": "灵魂出窍优先",
   "quickview.gui.settings.key.prompt": "> 请按一个键 <",
+  "quickview.gui.settings.key.reset": "重置",
   "quickview.gui.settings.key.label": "%1$s: %2$s",
   "quickview.gui.edit.title": "编辑书签",
   "quickview.gui.edit.name": "名称",

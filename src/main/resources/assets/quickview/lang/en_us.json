@@ -18,6 +18,7 @@
   "quickview.gui.settings.option.free_move": "Free Move",
   "quickview.gui.settings.option.freecam": "Freecam Priority",
   "quickview.gui.settings.key.prompt": "> Press a Key <",
+  "quickview.gui.settings.key.reset": "Reset",
   "quickview.gui.settings.key.label": "%1$s: %2$s",
   "quickview.gui.edit.title": "Edit Bookmark",
   "quickview.gui.edit.name": "Name",

@@ -19,6 +19,17 @@ public class WKeyBindingButton extends WButton {
         refreshLabel();
     }
 
+    public void resetToDefault(int defaultKey) {
+        keyBinding.setBoundKey(InputUtil.Type.KEYSYM.createFromCode(defaultKey));
+        KeyBinding.updateKeysByCode();
+        MinecraftClient.getInstance().options.write();
+        if (listening) {
+            listening = false;
+            releaseFocus();
+        }
+        refreshLabel();
+    }
+
     private void startListening() {
         listening = true;
         requestFocus();
@@ -45,7 +56,7 @@ public class WKeyBindingButton extends WButton {
         if (!listening) return super.onKeyPressed(input);
 
         if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
-            cancelListening();
+            applyKey(GLFW.GLFW_KEY_UNKNOWN);
         } else {
             applyKey(input.key());
         }
@@ -65,8 +76,7 @@ public class WKeyBindingButton extends WButton {
         if (listening) {
             setLabel(Text.translatable("quickview.gui.settings.key.prompt"));
         } else {
-            setLabel(Text.translatable("quickview.gui.settings.key.label",
-                    Text.translatable(keyBinding.getId()), keyBinding.getBoundKeyLocalizedText()));
+            setLabel(keyBinding.getBoundKeyLocalizedText());
         }
     }
 }

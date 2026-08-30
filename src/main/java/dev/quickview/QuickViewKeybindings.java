@@ -11,7 +11,9 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class QuickViewKeybindings {
     private static KeyBinding openMenuKey;
@@ -20,8 +22,14 @@ public class QuickViewKeybindings {
     private static KeyBinding toggleMoveKey;
     private static KeyBinding toggleFreecamPriorityKey;
 
+    private static final Map<KeyBinding, Integer> DEFAULT_KEYS = new HashMap<>();
+
     public static List<KeyBinding> getAll() {
         return List.of(openMenuKey, restoreKey, saveKey, toggleMoveKey, toggleFreecamPriorityKey);
+    }
+
+    public static int getDefaultKey(KeyBinding kb) {
+        return DEFAULT_KEYS.getOrDefault(kb, GLFW.GLFW_KEY_UNKNOWN);
     }
 
     public static void register() {
@@ -42,6 +50,12 @@ public class QuickViewKeybindings {
         toggleFreecamPriorityKey = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding("key.quickview.toggleFreecamPriority", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, category)
         );
+
+        DEFAULT_KEYS.put(openMenuKey, GLFW.GLFW_KEY_V);
+        DEFAULT_KEYS.put(restoreKey, GLFW.GLFW_KEY_B);
+        DEFAULT_KEYS.put(saveKey, GLFW.GLFW_KEY_N);
+        DEFAULT_KEYS.put(toggleMoveKey, GLFW.GLFW_KEY_G);
+        DEFAULT_KEYS.put(toggleFreecamPriorityKey, GLFW.GLFW_KEY_H);
 
         ClientTickEvents.START_CLIENT_TICK.register(client -> QuickViewManager.getInstance().onTickStart());
 
