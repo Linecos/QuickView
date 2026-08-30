@@ -12,11 +12,21 @@ import org.lwjgl.glfw.GLFW;
 public class WKeyBindingButton extends WButton {
     private final KeyBinding keyBinding;
     private boolean listening = false;
+    private Runnable onChange;
 
     public WKeyBindingButton(KeyBinding keyBinding) {
         this.keyBinding = keyBinding;
         setOnClick(this::startListening);
         refreshLabel();
+    }
+
+    public WKeyBindingButton setOnChange(Runnable onChange) {
+        this.onChange = onChange;
+        return this;
+    }
+
+    public boolean isAtDefault(int defaultKey) {
+        return keyBinding.isDefault();
     }
 
     public void resetToDefault(int defaultKey) {
@@ -28,6 +38,7 @@ public class WKeyBindingButton extends WButton {
             releaseFocus();
         }
         refreshLabel();
+        if (onChange != null) onChange.run();
     }
 
     private void startListening() {
@@ -49,6 +60,7 @@ public class WKeyBindingButton extends WButton {
         listening = false;
         releaseFocus();
         refreshLabel();
+        if (onChange != null) onChange.run();
     }
 
     @Override

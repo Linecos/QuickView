@@ -102,6 +102,8 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         WGridPanel row = new WGridPanel(1);
         row.setBackgroundPainter(ROW_BG);
 
+        int defaultKey = QuickViewKeybindings.getDefaultKey(kb);
+
         WLabel nameLabel = new WLabel(Text.translatable(kb.getId()), 0xFFFFFFFF)
                 .setHorizontalAlignment(HorizontalAlignment.LEFT)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
@@ -112,8 +114,11 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
 
         WButton resetBtn = new WButton(Text.translatable("quickview.gui.settings.key.reset"))
                 .setAlignment(HorizontalAlignment.CENTER)
-                .setOnClick(() -> keyBtn.resetToDefault(QuickViewKeybindings.getDefaultKey(kb)));
+                .setOnClick(() -> keyBtn.resetToDefault(defaultKey));
+        resetBtn.setEnabled(!keyBtn.isAtDefault(defaultKey));
         row.add(resetBtn, 292, 2, 28, 20);
+
+        keyBtn.setOnChange(() -> resetBtn.setEnabled(!keyBtn.isAtDefault(defaultKey)));
 
         return row;
     }
