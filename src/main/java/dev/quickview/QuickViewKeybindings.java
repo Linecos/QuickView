@@ -8,7 +8,10 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.List;
 
 public class QuickViewKeybindings {
     private static KeyBinding openMenuKey;
@@ -17,8 +20,12 @@ public class QuickViewKeybindings {
     private static KeyBinding toggleMoveKey;
     private static KeyBinding toggleFreecamPriorityKey;
 
+    public static List<KeyBinding> getAll() {
+        return List.of(openMenuKey, restoreKey, saveKey, toggleMoveKey, toggleFreecamPriorityKey);
+    }
+
     public static void register() {
-        KeyBinding.Category category = KeyBinding.Category.MISC;
+        KeyBinding.Category category = KeyBinding.Category.create(Identifier.of("quickview", "quickview"));
 
         openMenuKey = KeyBindingHelper.registerKeyBinding(
                 new KeyBinding("key.quickview.openMenu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V, category)
@@ -55,7 +62,7 @@ public class QuickViewKeybindings {
                 manager.restore();
             }
 
-            if (saveKey.wasPressed() && !manager.isViewActive()) {
+            if (saveKey.wasPressed() && !manager.isViewActive() && manager.isQuickAddEnabled()) {
                 manager.loadViewpoints();
                 int idx = manager.getViewpoints().size() + 1;
                 manager.addViewpoint("View " + idx);

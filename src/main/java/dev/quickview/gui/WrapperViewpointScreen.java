@@ -2,6 +2,8 @@ package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.GuiDescription;
 import io.github.cottonmc.cotton.gui.client.CottonClientScreen;
+import io.github.cottonmc.cotton.gui.widget.WWidget;
+import io.github.cottonmc.cotton.gui.widget.data.InputResult;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.input.KeyInput;
@@ -42,6 +44,12 @@ public class WrapperViewpointScreen extends CottonClientScreen {
 
     @Override
     public boolean keyPressed(KeyInput keyInput) {
+        GuiDescription description = getDescription();
+        WWidget focus = description != null ? description.getFocus() : null;
+        if (focus != null && focus.onKeyPressed(keyInput) == InputResult.PROCESSED) {
+            return true;
+        }
+
         boolean isEscape = keyInput.key() == GLFW.GLFW_KEY_ESCAPE;
         if (isEscape && this.parent != null) {
             MinecraftClient.getInstance().setScreen(this.parent);

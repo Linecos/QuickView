@@ -26,6 +26,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
             .setOnToggle(this::deleteBtnCallback);
     private final WButton restoreBtn = new WButton(Text.translatable("quickview.gui.main.restore"))
             .setOnClick(this::restoreCallback);
+    private final WButton settingsBtn = new WButton(Text.translatable("quickview.gui.main.settings"))
+            .setOnClick(this::settingsCallback);
 
     private final ViewpointListPanel<Viewpoint, WButton> panel;
     private final WGridPanel root = new WGridPanel(5);
@@ -77,7 +79,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.root.add(this.addBtn, 1, 41, 4, 4);
         this.root.add(this.editBtn, 8, 41, 8, 4);
         this.root.add(this.deleteBtn, 17, 41, 8, 4);
-        this.root.add(this.restoreBtn, 55, 41, 10, 4);
+        this.root.add(this.restoreBtn, 26, 41, 12, 4);
+        this.root.add(this.settingsBtn, 50, 41, 12, 4);
         this.root.validate(this);
     }
 
@@ -97,6 +100,13 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
     private void restoreCallback() {
         manager.restore();
+    }
+
+    private void settingsCallback() {
+        ViewpointSettingsGUI settingsGui = new ViewpointSettingsGUI();
+        WrapperViewpointScreen screen = new WrapperViewpointScreen(settingsGui);
+        screen.setParent(MinecraftClient.getInstance().currentScreen);
+        MinecraftClient.getInstance().setScreen(screen);
     }
 
     private void editBtnCallback(Boolean toggled) {

@@ -27,8 +27,9 @@ public class QuickViewManager {
     private String currentContext = "";
     private String currentDimension = "";
     private boolean viewActive = false;
+    private boolean quickAddEnabled = true;
     private boolean freeMoveEnabled = true;
-    private boolean preferFreecam = false;
+    private boolean preferFreecam = true;
 
     private double freeX;
     private double freeY;
@@ -59,6 +60,14 @@ public class QuickViewManager {
 
     public Viewpoint getActiveViewpoint() {
         return activeViewpoint;
+    }
+
+    public boolean isQuickAddEnabled() {
+        return quickAddEnabled;
+    }
+
+    public void toggleQuickAdd() {
+        quickAddEnabled = !quickAddEnabled;
     }
 
     public boolean isFreeMoveEnabled() {
