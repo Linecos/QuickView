@@ -9,6 +9,9 @@
   "client": [
     "CameraMixin",
     "KeyboardInputMixin",
-    "EntityMixin"
+    "EntityMixin",
+    "HeldItemRendererMixin",
+    "IWListPanel",
+    "IWWidget"
   ]
 }

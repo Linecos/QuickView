@@ -1,7 +1,8 @@
 package dev.quickview.mixin;
 
 import dev.quickview.QuickViewManager;
-import dev.quickview.Viewpoint;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.Perspective;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.world.World;
@@ -20,15 +21,49 @@ public abstract class CameraMixin {
     @Shadow
     protected abstract void setRotation(float yaw, float pitch);
 
+    @Shadow
+    private boolean thirdPerson;
+
     @Inject(method = "update", at = @At("TAIL"))
     private void quickview$overrideViewpoint(World world, Entity entity, boolean thirdPerson, boolean inverseView, float tickProgress, CallbackInfo ci) {
         QuickViewManager manager = QuickViewManager.getInstance();
         if (!manager.isViewActive()) return;
 
-        Viewpoint vp = manager.getActiveViewpoint();
-        if (vp == null) return;
+        double t = tickProgress;
+        double x = manager.getPrevFreeX() + (manager.getFreeX() - manager.getPrevFreeX()) * t;
+        double y = manager.getPrevFreeY() + (manager.getFreeY() - manager.getPrevFreeY()) * t;
+        double z = manager.getPrevFreeZ() + (manager.getFreeZ() - manager.getPrevFreeZ()) * t;
+        float yaw = manager.getFreeYaw();
+        float pitch = manager.getFreePitch();
 
-        this.setPos(vp.getX(), vp.getY(), vp.getZ());
-        this.setRotation(vp.getYaw(), vp.getPitch());
+        MinecraftClient client = MinecraftClient.getInstance();
+        Perspective perspective = client.options.getPerspective();
+        boolean showBody = !perspective.isFirstPerson();
+
+        if (showBody) {
+            double distance = 4.0;
+            double yawRad = Math.toRadians(yaw);
+            double pitchRad = Math.toRadians(pitch);
+            double cosPitch = Math.cos(pitchRad);
+            double forwardX = -Math.sin(yawRad) * cosPitch;
+            double forwardY = -Math.sin(pitchRad);
+            double forwardZ = Math.cos(yawRad) * cosPitch;
+
+            if (perspective.isFrontView()) {
+                x += forwardX * distance;
+                y += forwardY * distance;
+                z += forwardZ * distance;
+                yaw += 180.0f;
+                pitch = -pitch;
+            } else {
+                x -= forwardX * distance;
+                y -= forwardY * distance;
+                z -= forwardZ * distance;
+            }
+        }
+
+        this.setPos(x, y, z);
+        this.setRotation(yaw, pitch);
+        this.thirdPerson = true;
     }
 }

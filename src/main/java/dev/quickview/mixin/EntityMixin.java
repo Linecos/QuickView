@@ -13,11 +13,13 @@ public abstract class EntityMixin {
 
     @Inject(method = "changeLookDirection", at = @At("HEAD"), cancellable = true)
     private void quickview$cancelLookChange(double cursorDeltaX, double cursorDeltaY, CallbackInfo ci) {
-        if (!QuickViewManager.getInstance().isViewActive()) return;
+        QuickViewManager manager = QuickViewManager.getInstance();
+        if (!manager.isViewActive()) return;
 
         Entity self = (Entity) (Object) this;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null && self == client.player) {
+            manager.applyFreecamLook(cursorDeltaX, cursorDeltaY);
             ci.cancel();
         }
     }
