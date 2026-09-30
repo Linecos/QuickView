@@ -2,7 +2,20 @@ plugins {
     id 'fabric-loom' version "${loom_version}"
 }
 
-version = project.mod_version
+// dev 分支构建自动追加 -dev 后缀（产物如 quickview-1.0.0-dev.jar）
+// 其它分支 / tag / 加上 -Prelease 时产出正式版本号（如 quickview-1.0.0.jar）
+def quickviewGitBranch = {
+    try {
+        return providers.exec {
+            commandLine 'git', 'rev-parse', '--abbrev-ref', 'HEAD'
+        }.standardOutput.asText.get().trim()
+    } catch (Exception ignored) {
+        return ''
+    }
+}()
+def quickviewDevBuild = (quickviewGitBranch == 'dev') && !project.hasProperty('release')
+
+version = project.mod_version + (quickviewDevBuild ? '-dev' : '')
 group = project.maven_group
 
 base {
