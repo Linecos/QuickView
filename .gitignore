@@ -1,8 +1,28 @@
+# Gradle / Loom 构建产物
 .gradle/
 build/
 out/
+classes/
 run/
+.fabric/
+
+# IDE
 .idea/
 .vscode/
 *.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+bin/
+
+PROJECT_MEMORY.md
 TEMP/
+
+# 日志 / 崩溃报告 / 系统杂物
+*.log
+hs_err_pid*
+crash-reports/
+.DS_Store
+Thumbs.db
