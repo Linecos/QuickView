@@ -76,7 +76,7 @@ public class QuickViewKeybindings {
                 manager.restore();
             }
 
-            if (saveKey.wasPressed() && !manager.isViewActive() && manager.isQuickAddEnabled()) {
+            if (saveKey.wasPressed() && manager.isQuickAddEnabled()) {
                 manager.loadViewpoints();
                 int idx = manager.getViewpoints().size() + 1;
                 manager.addViewpoint("View " + idx);
