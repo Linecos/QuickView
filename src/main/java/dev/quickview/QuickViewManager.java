@@ -255,6 +255,12 @@ public class QuickViewManager {
 
     public Viewpoint captureViewSnapshot(String name) {
         MinecraftClient client = MinecraftClient.getInstance();
+
+        // 处于 QuickView 自由视角时，快照必须基于“当前正在看的相机”，而非玩家本体
+        if (viewActive) {
+            return new Viewpoint(name, currentDimension, freeX, freeY, freeZ, freeYaw, freePitch);
+        }
+
         Entity entity = resolveViewEntity(client);
         if (entity == null) return null;
 
