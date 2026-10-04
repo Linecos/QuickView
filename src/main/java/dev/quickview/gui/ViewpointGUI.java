@@ -7,7 +7,9 @@ import io.github.cottonmc.cotton.gui.client.BackgroundPainter;
 import io.github.cottonmc.cotton.gui.client.LightweightGuiDescription;
 import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.WGridPanel;
+import io.github.cottonmc.cotton.gui.widget.WLabel;
 import io.github.cottonmc.cotton.gui.widget.WToggleButton;
+import io.github.cottonmc.cotton.gui.widget.data.VerticalAlignment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
@@ -20,6 +22,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
             .setSuggestion(Text.translatable("quickview.gui.main.search"));
     private final WButton addBtn = new WButton(Text.translatable("quickview.gui.main.add"))
             .setOnClick(this::addCallback);
+    private final WButton clearBtn = new WClearButton()
+            .setOnClick(this::clearSearch);
     private final WToggleButton editBtn = new WToggleButton(Text.translatable("quickview.gui.main.edit"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::editBtnCallback);
@@ -33,8 +37,11 @@ public class ViewpointGUI extends LightweightGuiDescription {
             .setOnToggle(this::sortBtnCallback);
     private final WButton groupBtn = new WButton(Text.translatable("quickview.gui.main.groupAll"))
             .setOnClick(this::cycleGroupFilter);
-    private final WButton settingsBtn = new WButton(Text.translatable("quickview.gui.main.settings"))
+    private final WButton settingsBtn = new WGearButton()
             .setOnClick(this::settingsCallback);
+    /** 说明当前「模式」选中后点条目会发生什么；都没选中时不给文案，避免多一行无用的提示。 */
+    private final WLabel modeHint = new WLabel(Text.literal(""), 0xFFAAAAAA)
+            .setVerticalAlignment(VerticalAlignment.CENTER);
 
     private final ViewpointListPanel<Viewpoint> panel;
     private final WGridPanel root = new WGridPanel(5);
@@ -51,7 +58,11 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.setupRoot();
         this.setRootPanel(root);
         this.search.setChangedListener(s -> this.panel.applyFilter());
+        this.clearBtn.setEnabled(false);
         this.refreshList();
+        // 不在自由视角时「恢复视角」点了不会有任何反应，直接置灰
+        this.restoreBtn.setEnabled(manager.isViewActive());
+        this.updateModeHint();
     }
 
     private WViewpointEntry createEntry() {
@@ -80,16 +91,28 @@ public class ViewpointGUI extends LightweightGuiDescription {
     }
 
     private void setupRoot() {
-        this.root.setSize(350, 240);
-        this.root.add(this.search, 1, 1, 68, 2);
-        this.root.add(this.panel, 1, 6, 68, 34);
-        this.root.add(this.addBtn, 1, 41, 4, 4);
-        this.root.add(this.editBtn, 9, 41, 8, 4);
-        this.root.add(this.deleteBtn, 18, 41, 8, 4);
-        this.root.add(this.restoreBtn, 27, 41, 11, 4);
-        this.root.add(this.sortBtn, 39, 41, 7, 4);
-        this.root.add(this.groupBtn, 47, 41, 12, 4);
-        this.root.add(this.settingsBtn, 60, 41, 9, 4);
+        this.root.setSize(350, 250);
+
+        // 第一行：搜索框 + 清空 + 分组筛选。分组按钮放这里而非底部行，是因为它的文字会随
+        // 分组名变长，挤在按钮行里迟早溢出。
+        // 清空按钮做成 4 格（20px）正方形，与右侧分组按钮各留 5px 间隙。
+        this.root.add(this.search, 1, 1, 36, 4);
+        this.root.add(this.clearBtn, 38, 1, 4, 4);
+        this.root.add(this.groupBtn, 43, 1, 25, 4);
+
+        this.root.add(this.panel, 1, 6, 68, 33);
+
+        // 第二行：三个「模式开关」，彼此互斥，改变「点条目」的含义；右侧是随模式变化的说明文字
+        this.root.add(this.editBtn, 1, 40, 11, 4);
+        this.root.add(this.deleteBtn, 14, 40, 11, 4);
+        this.root.add(this.sortBtn, 27, 40, 11, 4);
+        this.root.add(this.modeHint, 39, 40, 30, 4);
+
+        // 第三行：动作按钮，点了立即生效
+        this.root.add(this.addBtn, 1, 45, 8, 4);
+        this.root.add(this.restoreBtn, 10, 45, 54, 4);
+        this.root.add(this.settingsBtn, 65, 45, 4, 4);
+
         this.root.validate(this);
     }
 
@@ -165,22 +188,32 @@ public class ViewpointGUI extends LightweightGuiDescription {
         int idx = manager.getViewpoints().indexOf(vp);
         ViewpointEditGUI editGui = new ViewpointEditGUI(vp, idx);
         WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
+        Screen main = MinecraftClient.getInstance().currentScreen;
         screen.setCloseCallback(() -> {
             editGui.saveData();
             refreshList();
         });
-        screen.setParent(MinecraftClient.getInstance().currentScreen);
+        screen.setParent(main);
+        editGui.setOnDeleteRequested(() -> {
+            editGui.saveData();
+            MinecraftClient.getInstance().setScreen(main);
+            openDeleteConfirm(vp, main);
+        });
         MinecraftClient.getInstance().setScreen(screen);
     }
 
     /** 删除前先弹一次确认，避免「删除」开关打开时误点条目直接永久删除。 */
     private void openDeleteConfirm(Viewpoint vp) {
-        Screen parent = MinecraftClient.getInstance().currentScreen;
+        openDeleteConfirm(vp, MinecraftClient.getInstance().currentScreen);
+    }
+
+    private void openDeleteConfirm(Viewpoint vp, Screen parent) {
         int idx = manager.getViewpoints().indexOf(vp);
         ConfirmGUI confirm = new ConfirmGUI(
                 Text.translatable("quickview.gui.confirm.delete", shorten(vp.getName())),
                 parent,
                 () -> manager.removeViewpoint(idx));
+        confirm.setConfirmLabel(Text.translatable("quickview.gui.main.delete"));
         WrapperViewpointScreen screen = new WrapperViewpointScreen(confirm);
         screen.setParent(parent);
         screen.setCloseCallback(this::refreshList);
@@ -197,6 +230,12 @@ public class ViewpointGUI extends LightweightGuiDescription {
         manager.restore();
     }
 
+    private void clearSearch() {
+        search.setText("");
+        panel.applyFilter();
+        clearBtn.setEnabled(false);
+    }
+
     private void settingsCallback() {
         ViewpointSettingsGUI settingsGui = new ViewpointSettingsGUI();
         WrapperViewpointScreen screen = new WrapperViewpointScreen(settingsGui);
@@ -209,6 +248,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
             this.deleteBtn.setToggle(false);
             setSortMode(false);
         }
+        updateModeHint();
     }
 
     private void deleteBtnCallback(Boolean toggled) {
@@ -216,6 +256,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
             this.editBtn.setToggle(false);
             setSortMode(false);
         }
+        updateModeHint();
     }
 
     private void sortBtnCallback(Boolean toggled) {
@@ -224,6 +265,23 @@ public class ViewpointGUI extends LightweightGuiDescription {
             this.deleteBtn.setToggle(false);
         }
         setSortMode(toggled);
+        updateModeHint();
+    }
+
+    /** 根据当前选中的模式，更新右侧的说明文字。 */
+    private void updateModeHint() {
+        Text hint;
+        if (editBtn.getToggle()) {
+            hint = Text.translatable("quickview.gui.main.modeHint.edit");
+        } else if (deleteBtn.getToggle()) {
+            hint = Text.translatable("quickview.gui.main.modeHint.delete");
+        } else if (sortBtn.getToggle()) {
+            hint = Text.translatable("quickview.gui.main.modeHint.sort");
+        } else {
+            // 没选模式时不提示（用户反馈这句话没必要）
+            hint = Text.literal("");
+        }
+        modeHint.setText(hint);
     }
 
     /** 排序模式与编辑/删除开关互斥：同一时刻只有一种「点条目的含义」。 */
