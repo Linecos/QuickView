@@ -3,6 +3,8 @@ package dev.quickview;
 public class Viewpoint {
     private String name;
     private String dimension;
+    /** 分组名，空串表示未分组。旧存档没有这个字段，读出来是 null，getter 会归一化成空串。 */
+    private String group = "";
     private double x;
     private double y;
     private double z;
@@ -27,6 +29,8 @@ public class Viewpoint {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getDimension() { return dimension; }
+    public String getGroup() { return group == null ? "" : group; }
+    public void setGroup(String group) { this.group = group == null ? "" : group; }
     public double getX() { return x; }
     public void setX(double x) { this.x = x; }
     public double getY() { return y; }

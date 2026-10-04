@@ -8,12 +8,10 @@ import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.loader.api.FabricLoader;
 
-import java.io.*;
+import java.io.Reader;
 import java.lang.reflect.Type;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,31 +68,11 @@ public class ViewpointStorage {
     }
 
     public static void save(String context, String dimension, List<Viewpoint> viewpoints) {
-        Path path = getStoragePath(context, dimension);
-        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
-        try {
-            Files.createDirectories(path.getParent());
-
-            StorageFile file = new StorageFile();
-            file.viewpoints = viewpoints;
-
-            // 先写临时文件，再原子替换：写入过程中崩溃/断电也不会留下半截 JSON 把书签全毁掉。
-            try (Writer writer = Files.newBufferedWriter(tmp)) {
-                GSON.toJson(file, writer);
-            }
-            try {
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (Exception e) {
-            QuickViewClient.LOGGER.error("Failed to save viewpoints for context '{}' dimension '{}': {}", context, dimension, e.getMessage());
-            try {
-                Files.deleteIfExists(tmp);
-            } catch (IOException ignored) {
-                // 清理失败无所谓，下次 save 会覆盖
-            }
-        }
+        StorageFile file = new StorageFile();
+        file.viewpoints = viewpoints;
+        // 原子写入（临时文件 + 原子替换）统一在 JsonFile 里处理
+        JsonFile.write(getStoragePath(context, dimension), file, GSON,
+                String.format("viewpoints for context '%s' dimension '%s'", context, dimension));
     }
 
     private static String sanitizeName(String name) {

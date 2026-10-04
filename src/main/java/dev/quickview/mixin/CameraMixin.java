@@ -29,6 +29,9 @@ public abstract class CameraMixin {
         QuickViewManager manager = QuickViewManager.getInstance();
         if (!manager.isViewActive()) return;
 
+        // 平滑过渡：先把插值推进到当前时刻，再取坐标
+        manager.updateTransition();
+
         double t = tickProgress;
         double x = manager.getPrevFreeX() + (manager.getFreeX() - manager.getPrevFreeX()) * t;
         double y = manager.getPrevFreeY() + (manager.getFreeY() - manager.getPrevFreeY()) * t;

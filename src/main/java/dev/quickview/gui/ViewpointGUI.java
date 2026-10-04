@@ -28,30 +28,46 @@ public class ViewpointGUI extends LightweightGuiDescription {
             .setOnToggle(this::deleteBtnCallback);
     private final WButton restoreBtn = new WButton(Text.translatable("quickview.gui.main.restore"))
             .setOnClick(this::restoreCallback);
+    private final WToggleButton sortBtn = new WToggleButton(Text.translatable("quickview.gui.main.sort"))
+            .setColor(0xFFFFFFFF, 0xFFFFFFFF)
+            .setOnToggle(this::sortBtnCallback);
+    private final WButton groupBtn = new WButton(Text.translatable("quickview.gui.main.groupAll"))
+            .setOnClick(this::cycleGroupFilter);
     private final WButton settingsBtn = new WButton(Text.translatable("quickview.gui.main.settings"))
             .setOnClick(this::settingsCallback);
 
-    private final ViewpointListPanel<Viewpoint, WButton> panel;
+    private final ViewpointListPanel<Viewpoint> panel;
     private final WGridPanel root = new WGridPanel(5);
     private final QuickViewManager manager = QuickViewManager.getInstance();
 
+    /** 当前分组筛选，空串表示「全部」。 */
+    private String groupFilter = "";
+
     public ViewpointGUI() {
         manager.loadViewpoints();
-        List<Viewpoint> data = new ArrayList<>(manager.getViewpoints());
-        this.panel = new ViewpointListPanel<>(data, this::createEntry, this::configureEntry,
+        this.panel = new ViewpointListPanel<>(new ArrayList<>(), this::createEntry, this::configureEntry,
                 this.search, vp -> PinyinSearch.keysOf(vp.getName()));
+        this.panel.setOnReorder(manager::reorderVisible);
         this.setupRoot();
         this.setRootPanel(root);
         this.search.setChangedListener(s -> this.panel.applyFilter());
+        this.refreshList();
     }
 
-    private WButton createEntry() {
-        return new WButton(Text.literal(""));
+    private WViewpointEntry createEntry() {
+        return new WViewpointEntry();
     }
 
-    private void configureEntry(Viewpoint vp, WButton btn) {
-        btn.setLabel(Text.literal(vp.getName()));
+    private void configureEntry(Viewpoint vp, WViewpointEntry btn) {
+        String group = vp.getGroup();
+        btn.setLabel(group.isEmpty()
+                ? Text.literal(vp.getName())
+                : Text.literal("[" + group + "] " + vp.getName()));
         btn.setOnClick(() -> {
+            if (sortBtn.getToggle()) {
+                // 排序模式下条目只用于拖拽，点一下不做任何事（避免误切换视角）
+                return;
+            }
             if (editBtn.getToggle()) {
                 openEditScreen(vp);
             } else if (deleteBtn.getToggle()) {
@@ -68,23 +84,80 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.root.add(this.search, 1, 1, 68, 2);
         this.root.add(this.panel, 1, 6, 68, 34);
         this.root.add(this.addBtn, 1, 41, 4, 4);
-        this.root.add(this.editBtn, 8, 41, 8, 4);
-        this.root.add(this.deleteBtn, 17, 41, 8, 4);
-        this.root.add(this.restoreBtn, 26, 41, 12, 4);
-        this.root.add(this.settingsBtn, 50, 41, 12, 4);
+        this.root.add(this.editBtn, 9, 41, 8, 4);
+        this.root.add(this.deleteBtn, 18, 41, 8, 4);
+        this.root.add(this.restoreBtn, 27, 41, 11, 4);
+        this.root.add(this.sortBtn, 39, 41, 7, 4);
+        this.root.add(this.groupBtn, 47, 41, 12, 4);
+        this.root.add(this.settingsBtn, 60, 41, 9, 4);
         this.root.validate(this);
     }
 
     private void addCallback() {
         Viewpoint vp = manager.createViewpoint("");
         if (vp == null) return;
+        // 正在按分组筛选时，新建的书签直接归入当前分组，否则它会被筛掉、看起来像没建成功
+        if (!groupFilter.isEmpty()) {
+            vp.setGroup(groupFilter);
+            manager.saveViewpoints();
+        }
         openEditScreen(vp);
     }
 
-    /** 从磁盘重新读取列表并刷新面板（编辑/删除后统一走这里）。 */
+    /** 从磁盘重新读取列表，并按当前分组筛选刷新面板（编辑/删除后统一走这里）。 */
     private void refreshList() {
         manager.loadViewpoints();
-        panel.setData(new ArrayList<>(manager.getViewpoints()));
+        applyGroupFilter();
+    }
+
+    private void applyGroupFilter() {
+        List<Viewpoint> all = manager.getViewpoints();
+        List<String> groups = groupsOf(all);
+        if (!groupFilter.isEmpty() && !groups.contains(groupFilter)) {
+            // 该分组已被改名或删空，退回「全部」
+            groupFilter = "";
+        }
+
+        List<Viewpoint> visible = new ArrayList<>();
+        for (Viewpoint vp : all) {
+            if (groupFilter.isEmpty() || groupFilter.equals(vp.getGroup())) {
+                visible.add(vp);
+            }
+        }
+        panel.setData(visible);
+        updateGroupButton(groups);
+    }
+
+    private void cycleGroupFilter() {
+        List<String> groups = groupsOf(manager.getViewpoints());
+        if (groups.isEmpty()) {
+            groupFilter = "";
+        } else if (groupFilter.isEmpty()) {
+            groupFilter = groups.get(0);
+        } else {
+            int next = groups.indexOf(groupFilter) + 1;
+            groupFilter = next >= groups.size() ? "" : groups.get(next);
+        }
+        applyGroupFilter();
+    }
+
+    private void updateGroupButton(List<String> groups) {
+        groupBtn.setLabel(groupFilter.isEmpty()
+                ? Text.translatable("quickview.gui.main.groupAll")
+                : Text.translatable("quickview.gui.main.groupName", groupFilter));
+        groupBtn.setEnabled(!groups.isEmpty());
+    }
+
+    /** 按出现顺序收集所有非空分组名。 */
+    private static List<String> groupsOf(List<Viewpoint> list) {
+        List<String> groups = new ArrayList<>();
+        for (Viewpoint vp : list) {
+            String group = vp.getGroup();
+            if (!group.isEmpty() && !groups.contains(group)) {
+                groups.add(group);
+            }
+        }
+        return groups;
     }
 
     /** 打开书签编辑面板；关闭时保存改动并刷新列表。 */
@@ -134,13 +207,31 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void editBtnCallback(Boolean toggled) {
         if (toggled) {
             this.deleteBtn.setToggle(false);
+            setSortMode(false);
         }
     }
 
     private void deleteBtnCallback(Boolean toggled) {
         if (toggled) {
             this.editBtn.setToggle(false);
+            setSortMode(false);
         }
+    }
+
+    private void sortBtnCallback(Boolean toggled) {
+        if (toggled) {
+            this.editBtn.setToggle(false);
+            this.deleteBtn.setToggle(false);
+        }
+        setSortMode(toggled);
+    }
+
+    /** 排序模式与编辑/删除开关互斥：同一时刻只有一种「点条目的含义」。 */
+    private void setSortMode(boolean enabled) {
+        if (sortBtn.getToggle() != enabled) {
+            sortBtn.setToggle(enabled);
+        }
+        panel.setSortMode(enabled);
     }
 
     @Override

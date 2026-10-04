@@ -66,6 +66,8 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove()), 5, 46, 330, 24);
         panel.add(createFeatureRow("quickview.gui.settings.option.freecam",
                 manager.isPreferFreecam(), on -> manager.togglePreferFreecam()), 5, 82, 330, 24);
+        panel.add(createFeatureRow("quickview.gui.settings.option.smooth_transition",
+                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition()), 5, 118, 330, 24);
 
         return panel;
     }

@@ -38,6 +38,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private final int viewpointIndex;
     private final WTextFieldExtra nameField = new WTextFieldExtra()
             .setSuggestion(Text.translatable("quickview.gui.edit.name"));
+    private final WTextFieldExtra groupField = new WTextFieldExtra()
+            .setSuggestion(Text.translatable("quickview.gui.edit.group"));
     private final WTextFieldExtra xField;
     private final WTextFieldExtra yField;
     private final WTextFieldExtra zField;
@@ -54,6 +56,11 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.nameField.setFocusLostCallback(s -> {
             manager.renameViewpoint(viewpointIndex, s);
             syncNameLength();
+        });
+        this.groupField.setText(viewpoint.getGroup());
+        this.groupField.setFocusLostCallback(s -> {
+            viewpoint.setGroup(s);
+            manager.saveViewpoints();
         });
         this.xField = coordField(String.format("%.1f", viewpoint.getX()));
         this.yField = coordField(String.format("%.1f", viewpoint.getY()));
@@ -123,7 +130,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
 
     private void setupRoot() {
         this.root.setSize(250, 115);
-        this.root.add(this.nameField, 1, 1, 48, 4);
+        this.root.add(this.nameField, 1, 1, 23, 4);
+        this.root.add(this.groupField, 26, 1, 23, 4);
 
         this.root.add(coordLabel("X:"), 1, 8, LEFT_LABEL_W, 2);
         this.root.add(this.xField, 5, 7, COORD_BOX_W, 2);

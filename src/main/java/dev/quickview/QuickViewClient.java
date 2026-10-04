@@ -11,6 +11,8 @@ public class QuickViewClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("QuickView initializing...");
+        QuickViewManager.getInstance().loadConfig();
+
         // 拼音字典首次使用要初始化约 250ms，放后台线程预热，避免第一次敲搜索框时卡顿
         Thread pinyinWarmUp = new Thread(PinyinSearch::warmUp, "QuickView-PinyinWarmUp");
         pinyinWarmUp.setDaemon(true);
