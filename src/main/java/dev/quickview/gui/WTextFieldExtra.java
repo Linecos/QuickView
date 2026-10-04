@@ -26,6 +26,12 @@ public class WTextFieldExtra extends WTextField {
     }
 
     @Override
+    public WTextFieldExtra setMaxLength(int max) {
+        super.setMaxLength(max);
+        return this;
+    }
+
+    @Override
     public void onFocusLost() {
         super.onFocusLost();
         if (focusLostCallback != null) {

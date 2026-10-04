@@ -7,10 +7,8 @@ import io.github.cottonmc.cotton.gui.client.LightweightGuiDescription;
 import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.WGridPanel;
 import io.github.cottonmc.cotton.gui.widget.WLabel;
-import io.github.cottonmc.cotton.gui.widget.WPanel;
-import io.github.cottonmc.cotton.gui.widget.data.InputResult;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
@@ -26,7 +24,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private static final int LIST_W = 115;
     private static final int LIST_ROW_H = 20;
     /** 编辑面板高度有限，最多同时显示几项，再多就直接在手输框里打。 */
-    private static final int LIST_MAX_ROWS = 5;
+    private static final int LIST_MAX_ROWS = 4;
     private static final int LIST_X = 26;   // 格
     private static final int LIST_Y = 5;    // 格
 
@@ -46,7 +44,17 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         return true;
     };
 
-    private final WGridPanel root = new WGridPanel(5);
+    private final WGridPanel root = new WGridPanel(5) {
+        @Override
+        public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
+            // 分组下拉展开期间冻结全界面 hover（原理见 ViewpointGUI.root 注释）
+            if (groupList != null) {
+                super.paint(context, x, y, ViewpointGUI.HOVER_OFF_XY, ViewpointGUI.HOVER_OFF_XY);
+                return;
+            }
+            super.paint(context, x, y, mouseX, mouseY);
+        }
+    };
     private final Viewpoint viewpoint;
     private final int viewpointIndex;
     private final WTextFieldExtra nameField = new WTextFieldExtra()
@@ -64,7 +72,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private final ChevronIcon chevron = new ChevronIcon();
     private final WButton groupPickBtn = new WButton(chevron)
             .setOnClick(this::toggleGroupList);
-    private final WButton deleteBtn = new WButton(Text.translatable("quickview.gui.edit.delete"))
+    /** 删除按钮：红色垃圾桶图标（无独立文案，配合主界面的二次确认使用）。 */
+    private final WButton deleteBtn = new WButton(new TrashIcon())
             .setOnClick(this::requestDelete);
     private final QuickViewManager manager = QuickViewManager.getInstance();
 
@@ -72,6 +81,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private WGridPanel groupList;
     /** 展开列表时铺满面板的透明挡板，点列表外先把列表收起。 */
     private ClickCatcher clickCatcher;
+    /** 下拉处于「输入新分组名」状态时记住输入框，确认后要把内容写回。 */
+    private WTextFieldExtra newGroupField;
 
     /** 由主界面注入：点「删除该书签」时回调（主界面负责先关编辑页、再弹确认）。 */
     private Runnable onDeleteRequested;
@@ -81,7 +92,12 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.viewpointIndex = viewpointIndex;
         this.nameField.setText(viewpoint.getName());
         this.nameField.setFocusLostCallback(s -> {
-            manager.renameViewpoint(viewpointIndex, s);
+            // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名
+            if (s.isEmpty()) {
+                nameField.setText(viewpoint.getName());
+            } else {
+                manager.renameViewpoint(viewpointIndex, s);
+            }
             syncNameLength();
         });
         this.groupField.setText(viewpoint.getGroup());
@@ -96,8 +112,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.pitchField = coordField(String.format("%.1f", viewpoint.getPitch()));
         this.setupRoot();
         this.setRootPanel(root);
-        // 一个分组都没有时下拉没有意义，直接置灰
-        this.groupPickBtn.setEnabled(!existingGroups().isEmpty());
     }
 
     /** 注入删除回调（返回 this 便于链式调用）。 */
@@ -113,9 +127,10 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     /**
-     * 「∨」下拉按钮：展开 / 收起已有分组列表。
+     * 「∨」下拉按钮：展开 / 收起分组候选列表。
      *
-     * <p>原来是点「已有」在已有分组里逐个循环，分组一多就得连点好几次才能翻到目标；
+     * <p>列表内容：「＋ 新建分组…」（进入行内输入）、「（无分组）」、各已有分组。
+     * 原来是点「已有」在已有分组里逐个循环，分组一多就得连点好几次才能翻到目标；
      * 改成一次展开、直接挑。
      */
     private void toggleGroupList() {
@@ -123,30 +138,67 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             closeGroupList();
             return;
         }
-        List<String> groups = existingGroups();
-        if (groups.isEmpty()) {
-            // 还没有任何分组可挑，直接在输入框里手输即可
-            return;
-        }
-        int rows = Math.min(groups.size() + 1, LIST_MAX_ROWS);
+        openGroupList(false);
+    }
 
-        WGridPanel list = new WGridPanel(1);   // 1px 网格 = 子控件直接用像素坐标
-        list.setBackgroundPainter(BackgroundPainter.createColorful(0xE0101010));
-        list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.none"), ""), 0, 0, LIST_W, LIST_ROW_H);
-        for (int i = 0; i < rows - 1; i++) {
-            String name = groups.get(i);
-            list.add(createGroupEntry(Text.literal(name), name), 0, (i + 1) * LIST_ROW_H, LIST_W, LIST_ROW_H);
+    /** @param inputMode true = 行内输入新分组名；false = 常规候选列表 */
+    private void openGroupList(boolean inputMode) {
+        List<String> groups = existingGroups();
+        DropdownListPanel list = new DropdownListPanel();
+        list.setBackgroundPainter(DropdownStyle.LIST_BG);
+
+        // 行内容四周内缩，露出面板描边（见 DropdownStyle）
+        int rowX = DropdownStyle.ROW_INSET;
+        int rowW = LIST_W - DropdownStyle.ROW_INSET * 2;
+
+        int rows;
+        if (inputMode) {
+            rows = 1;
+            newGroupField = new WTextFieldExtra()
+                    .setSuggestion(Text.translatable("quickview.gui.edit.group.new.hint"));
+            WButton okBtn = new WButton(Text.translatable("quickview.gui.confirm.ok"))
+                    .setOnClick(this::confirmNewGroup);
+            list.add(newGroupField, rowX, DropdownStyle.ROW_TOP, rowW - 43, LIST_ROW_H);
+            list.add(okBtn, rowX + rowW - 40, DropdownStyle.ROW_TOP, 40, LIST_ROW_H);
+        } else {
+            rows = Math.min(groups.size() + 2, LIST_MAX_ROWS);
+            // 「新建分组」永远可用 —— 没有任何已有分组时它是唯一入口
+            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null),
+                    rowX, DropdownStyle.ROW_TOP, rowW, LIST_ROW_H);
+            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.none"), ""),
+                    rowX, DropdownStyle.ROW_TOP + LIST_ROW_H, rowW, LIST_ROW_H);
+            for (int i = 0; i < rows - 2; i++) {
+                String name = groups.get(i);
+                list.add(createGroupEntry(Text.literal(name), name),
+                        rowX, DropdownStyle.ROW_TOP + (i + 2) * LIST_ROW_H, rowW, LIST_ROW_H);
+            }
         }
+        // setHost 会递归设给已加入的子控件；必须在 requestFocus 之前调，否则焦点请求会被静默忽略
         list.setHost(this);
+        if (inputMode && newGroupField != null) {
+            newGroupField.requestFocus();
+        }
 
         // 挡板先加（在列表下层），点列表以外的地方能被它先吃掉；列表后加，画在最上面
-        this.clickCatcher = new ClickCatcher(this::closeGroupList);
+        this.clickCatcher = ClickCatcher.closeOnOutsideClick(this::closeGroupList);
         this.clickCatcher.setHost(this);
         this.groupList = list;
-        this.root.add(this.clickCatcher, 0, 0, 50, 27);
-        this.root.add(list, LIST_X, LIST_Y, LIST_W / 5, rows * LIST_ROW_H / 5);
+        this.root.add(this.clickCatcher, 0, 0, 50, 23);
+        // +1 格（5px）是面板的垂直留白（上 2 + 下 3），见 DropdownStyle.VERTICAL_PADDING
+        this.root.add(list, LIST_X, LIST_Y, LIST_W / 5, rows * LIST_ROW_H / 5 + 1);
 
         this.chevron.setFlipped(true);
+    }
+
+    /** 确认新建分组：名字非空才生效；与已有分组重名时等同于选中该分组。 */
+    private void confirmNewGroup() {
+        String name = newGroupField != null ? newGroupField.getText().trim() : "";
+        if (!name.isEmpty()) {
+            groupField.setText(name);
+            viewpoint.setGroup(name);
+            manager.saveViewpoints();
+        }
+        closeGroupList();
     }
 
     private void closeGroupList() {
@@ -158,11 +210,18 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             this.root.remove(this.clickCatcher);
             this.clickCatcher = null;
         }
+        this.newGroupField = null;
         this.chevron.setFlipped(false);
     }
 
+    /** value 为 null 表示「新建分组」入口，点击后切换到行内输入。 */
     private WButton createGroupEntry(Text label, String value) {
         return new WButton(label).setOnClick(() -> {
+            if (value == null) {
+                closeGroupList();
+                openGroupList(true);
+                return;
+            }
             groupField.setText(value);
             viewpoint.setGroup(value);
             manager.saveViewpoints();
@@ -240,7 +299,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     private void setupRoot() {
-        this.root.setSize(250, 135);
+        // 高度收窄到 115：内容到 y=21 格（105px）为止，下拉 4 行（25 + 4×20 + 3 = 108px）也放得下
+        this.root.setSize(250, 115);
         this.root.add(this.nameField, 1, 1, 23, 4);
         this.root.add(this.groupField, 26, 1, 18, 4);
         this.root.add(this.groupPickBtn, 45, 1, 4, 4);
@@ -257,14 +317,19 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.root.add(coordLabel("Pitch:"), 25, 13, RIGHT_LABEL_W, 2);
         this.root.add(this.pitchField, 33, 12, COORD_BOX_W, 2);
 
-        this.root.add(this.setCurrentBtn, 33, 17, COORD_BOX_W, 4);
-        this.root.add(this.deleteBtn, 1, 22, COORD_BOX_W, 4);
+        // 「设为当前」向左扩到与 Yaw/Pitch 列对齐（x=25），加宽后与垃圾桶按钮一起填满右栏
+        this.root.add(this.setCurrentBtn, 25, 17, 19, 4);
+        this.root.add(this.deleteBtn, 45, 17, 4, 4);
 
         this.root.validate(this);
     }
 
     public void saveData() {
-        manager.renameViewpoint(viewpointIndex, nameField.getText());
+        // 名字为空时不覆盖旧名：用户可能只是随手清了输入框，不该把书签变成无名
+        String name = nameField.getText();
+        if (!name.isEmpty()) {
+            manager.renameViewpoint(viewpointIndex, name);
+        }
         applyCoordinates();
     }
 
@@ -272,23 +337,5 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     public void addPainters() {
         super.addPainters();
         this.rootPanel.setBackgroundPainter(BackgroundPainter.createColorful(0x4D000000));
-    }
-
-    /**
-     * 展开分组列表时铺满整个编辑面板的透明挡板：点列表以外的地方先收起列表，
-     * 并且不把这次点击透传给下面的输入框（下拉菜单的常见行为）。
-     */
-    private static final class ClickCatcher extends WPanel {
-        private final Runnable onOutsideClick;
-
-        private ClickCatcher(Runnable onOutsideClick) {
-            this.onOutsideClick = onOutsideClick;
-        }
-
-        @Override
-        public InputResult onMouseDown(Click click, boolean doubled) {
-            onOutsideClick.run();
-            return InputResult.PROCESSED;
-        }
     }
 }

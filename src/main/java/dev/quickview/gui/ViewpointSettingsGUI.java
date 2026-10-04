@@ -48,10 +48,11 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 });
         tabGeneral.setEnabled(false);
 
-        root.setSize(350, 240);
+        // 内容卡 35 格（175px）：功能行最低到 172px；root 220 让底部留白 10px（上轮 210 只剩 ~5px）
+        root.setSize(350, 220);
         root.add(tabGeneral, 1, 1, 14, 4);
         root.add(tabKeybinds, 17, 1, 14, 4);
-        root.add(content, 1, 7, 68, 36);
+        root.add(content, 1, 7, 68, 35);
 
         root.validate(this);
         setRootPanel(root);
@@ -61,18 +62,21 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         WGridPanel panel = new WGridPanel(1);
 
         panel.add(createFeatureRow("quickview.gui.settings.option.quick_add",
-                manager.isQuickAddEnabled(), on -> manager.toggleQuickAdd()), 5, 4, 330, 36);
+                manager.isQuickAddEnabled(), on -> manager.toggleQuickAdd(),
+                QuickViewKeybindings.getSaveKey()), 5, 4, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.free_move",
-                manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove()), 5, 48, 330, 36);
+                manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove(),
+                QuickViewKeybindings.getToggleMoveKey()), 5, 48, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.freecam",
-                manager.isPreferFreecam(), on -> manager.togglePreferFreecam()), 5, 92, 330, 36);
+                manager.isPreferFreecam(), on -> manager.togglePreferFreecam(), null), 5, 92, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.smooth_transition",
-                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition()), 5, 136, 330, 36);
+                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition(), null), 5, 136, 330, 36);
 
         return panel;
     }
 
-    private WGridPanel createFeatureRow(String key, boolean initialState, Consumer<Boolean> handler) {
+    private WGridPanel createFeatureRow(String key, boolean initialState, Consumer<Boolean> handler,
+                                        KeyBinding descKeyBinding) {
         WGridPanel row = new WGridPanel(1);
         row.setBackgroundPainter(ROW_BG);
 
@@ -80,7 +84,11 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 .setVerticalAlignment(VerticalAlignment.CENTER);
         row.add(nameLabel, 15, 2, 270, 16);
 
-        WLabel descLabel = new WLabel(Text.translatable(key + ".desc"), 0xFFAAAAAA)
+        // 说明里涉及快捷键的部分动态取当前绑定（改键后描述跟着变），不再写死 N/G
+        Text desc = descKeyBinding != null
+                ? Text.translatable(key + ".desc", descKeyBinding.getBoundKeyLocalizedText())
+                : Text.translatable(key + ".desc");
+        WLabel descLabel = new WLabel(desc, 0xFFAAAAAA)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
         row.add(descLabel, 15, 19, 270, 14);
 
@@ -98,7 +106,7 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
 
         List<KeyBinding> bindings = QuickViewKeybindings.getAll();
         for (int i = 0; i < bindings.size(); i++) {
-            panel.add(createKeybindingRow(bindings.get(i)), 5, 10 + i * 36, 330, 24);
+            panel.add(createKeybindingRow(bindings.get(i)), 5, 10 + i * 32, 330, 24);
         }
 
         return panel;

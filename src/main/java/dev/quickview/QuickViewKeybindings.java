@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
@@ -31,6 +32,19 @@ public class QuickViewKeybindings {
 
     public static int getDefaultKey(KeyBinding kb) {
         return DEFAULT_KEYS.getOrDefault(kb, GLFW.GLFW_KEY_UNKNOWN);
+    }
+
+    /** 「打开菜单」键本体：界面打开时 keybinding 不计数，屏幕层要靠它自己判断关闭（见 WrapperViewpointScreen）。 */
+    public static KeyBinding getOpenMenuKey() {
+        return openMenuKey;
+    }
+
+    public static KeyBinding getSaveKey() {
+        return saveKey;
+    }
+
+    public static KeyBinding getToggleMoveKey() {
+        return toggleMoveKey;
     }
 
     public static void register() {
@@ -74,10 +88,17 @@ public class QuickViewKeybindings {
             QuickViewManager manager = QuickViewManager.getInstance();
 
             if (openMenuKey.wasPressed()) {
+                // 再按一次 V 关闭：任何 QuickView 界面（主菜单/编辑页/设置页/确认弹窗
+                // 都是 WrapperViewpointScreen）都直接关闭，而不是再叠一层新菜单
+                Screen current = MinecraftClient.getInstance().currentScreen;
+                if (current instanceof WrapperViewpointScreen) {
+                    MinecraftClient.getInstance().setScreen(null);
+                    return;
+                }
                 manager.loadViewpoints();
                 ViewpointGUI gui = new ViewpointGUI();
                 WrapperViewpointScreen screen = new WrapperViewpointScreen(gui);
-                screen.setParent(MinecraftClient.getInstance().currentScreen);
+                screen.setParent(current);
                 MinecraftClient.getInstance().setScreen(screen);
             }
 
