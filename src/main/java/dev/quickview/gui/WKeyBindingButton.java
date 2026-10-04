@@ -25,7 +25,8 @@ public class WKeyBindingButton extends WButton {
         return this;
     }
 
-    public boolean isAtDefault(int defaultKey) {
+    /** 当前绑定是否就是原版默认键（直接用 KeyBinding.isDefault()，无需比对 InputUtil.Key）。 */
+    public boolean isAtDefault() {
         return keyBinding.isDefault();
     }
 
@@ -34,8 +35,7 @@ public class WKeyBindingButton extends WButton {
         KeyBinding.updateKeysByCode();
         MinecraftClient.getInstance().options.write();
         if (listening) {
-            listening = false;
-            releaseFocus();
+            stopListening();
         }
         refreshLabel();
         if (onChange != null) onChange.run();
@@ -47,18 +47,17 @@ public class WKeyBindingButton extends WButton {
         refreshLabel();
     }
 
-    private void cancelListening() {
+    /** 结束监听：清标志 + 释放焦点。改键 / 重置后共用（{@code releaseFocus} 内部有身份检查，可安全调用）。 */
+    private void stopListening() {
         listening = false;
         releaseFocus();
-        refreshLabel();
     }
 
     private void applyKey(int glfwKey) {
         keyBinding.setBoundKey(InputUtil.Type.KEYSYM.createFromCode(glfwKey));
         KeyBinding.updateKeysByCode();
         MinecraftClient.getInstance().options.write();
-        listening = false;
-        releaseFocus();
+        stopListening();
         refreshLabel();
         if (onChange != null) onChange.run();
     }

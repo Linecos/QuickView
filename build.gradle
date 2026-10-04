@@ -35,10 +35,6 @@ repositories {
         name = 'AlexIIL'
         url = 'https://staging.alexiil.uk/maven/'
     }
-    maven {
-        name = 'Bbkr'
-        url = 'https://server.bbkr.space:8081/artifactory/libs-release/'
-    }
     mavenCentral()
 }
 
@@ -48,6 +44,16 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "io.github.cottonmc:LibGui:${project.libgui_version}"
+
+    // 拼音搜索（houbb/pinyin，Apache-2.0，Maven Central）。
+    // 做的是「词级分词 + 多音字」转换，实测 重庆→chongqing、长沙→changsha、银行→yinhang、音乐→yinyue，
+    // 声母 重庆→cq、音乐→yy —— 这些是 Tinypinyin 单读音做不到的（见 PROJECT_MEMORY §4.4）。
+    // 三个 jar 必须一起捆绑：pinyin 依赖 heaven；nlp-common 提供分词用的 trie/dfa，
+    // 去掉它会在 PinyinSegments 初始化时 NoClassDefFoundError（已实测）。
+    implementation "com.github.houbb:pinyin:${project.pinyin_version}"
+    include "com.github.houbb:pinyin:${project.pinyin_version}"
+    include "com.github.houbb:heaven:${project.pinyin_heaven_version}"
+    include "com.github.houbb:nlp-common:${project.pinyin_nlp_common_version}"
 }
 
 processResources {

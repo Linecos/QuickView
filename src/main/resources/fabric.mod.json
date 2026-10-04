@@ -5,8 +5,13 @@
   "name": "QuickView",
   "description": "视角书签系统：保存相机机位，一键瞬间切换视角，一键恢复本体视角，期间玩家本体保持原位。",
   "authors": [
-    "QuickView"
+    "Linecos"
   ],
+  "contact": {
+    "homepage": "https://github.com/Linecos/QuickView",
+    "sources": "https://github.com/Linecos/QuickView",
+    "issues": "https://github.com/Linecos/QuickView/issues"
+  },
   "license": "MIT",
   "icon": "assets/quickview/icon.png",
   "environment": "client",
@@ -20,7 +25,7 @@
   ],
   "depends": {
     "fabricloader": ">=0.17.0",
-    "fabric-api": "*",
+    "fabric-api": ">=0.141.6",
     "libgui": "*",
     "minecraft": "~1.21.11",
     "java": ">=21"
