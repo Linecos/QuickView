@@ -16,8 +16,13 @@ import net.minecraft.text.Text;
  */
 public class ConfirmGUI extends LightweightGuiDescription {
     private final WGridPanel root = new WGridPanel(5);
+    private final Screen parent;
+    private final Runnable onConfirm;
+    private final WButton confirmBtn;
 
     public ConfirmGUI(Text message, Screen parent, Runnable onConfirm) {
+        this.parent = parent;
+        this.onConfirm = onConfirm;
         root.setSize(220, 80);
 
         WLabel label = new WLabel(message, 0xFFFFFFFF)
@@ -28,7 +33,7 @@ public class ConfirmGUI extends LightweightGuiDescription {
                 .setOnClick(() -> MinecraftClient.getInstance().setScreen(parent));
         root.add(cancelBtn, 6, 11, 12, 4);
 
-        WButton confirmBtn = new WButton(Text.translatable("quickview.gui.confirm.ok"))
+        confirmBtn = new WButton(Text.translatable("quickview.gui.confirm.ok"))
                 .setOnClick(() -> {
                     if (onConfirm != null) {
                         onConfirm.run();
@@ -39,6 +44,12 @@ public class ConfirmGUI extends LightweightGuiDescription {
 
         root.validate(this);
         setRootPanel(root);
+    }
+
+    /** 自定义确认按钮文案（默认「确定」），例如删除场景传「删除」。 */
+    public ConfirmGUI setConfirmLabel(Text label) {
+        confirmBtn.setLabel(label);
+        return this;
     }
 
     @Override

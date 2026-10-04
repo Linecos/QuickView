@@ -61,13 +61,13 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         WGridPanel panel = new WGridPanel(1);
 
         panel.add(createFeatureRow("quickview.gui.settings.option.quick_add",
-                manager.isQuickAddEnabled(), on -> manager.toggleQuickAdd()), 5, 10, 330, 24);
+                manager.isQuickAddEnabled(), on -> manager.toggleQuickAdd()), 5, 4, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.free_move",
-                manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove()), 5, 46, 330, 24);
+                manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove()), 5, 48, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.freecam",
-                manager.isPreferFreecam(), on -> manager.togglePreferFreecam()), 5, 82, 330, 24);
+                manager.isPreferFreecam(), on -> manager.togglePreferFreecam()), 5, 92, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.smooth_transition",
-                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition()), 5, 118, 330, 24);
+                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition()), 5, 136, 330, 36);
 
         return panel;
     }
@@ -78,13 +78,17 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
 
         WLabel nameLabel = new WLabel(Text.translatable(key), 0xFFFFFFFF)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
-        row.add(nameLabel, 15, 0, 270, 24);
+        row.add(nameLabel, 15, 2, 270, 16);
+
+        WLabel descLabel = new WLabel(Text.translatable(key + ".desc"), 0xFFAAAAAA)
+                .setVerticalAlignment(VerticalAlignment.CENTER);
+        row.add(descLabel, 15, 19, 270, 14);
 
         WToggleButton toggle = new WToggleButton()
                 .setColor(0xFFFFFFFF, 0xFFFFFFFF)
                 .setOnToggle(handler);
         toggle.setToggle(initialState);
-        row.add(toggle, 295, 3, 18, 18);
+        row.add(toggle, 295, 9, 18, 18);
 
         return row;
     }

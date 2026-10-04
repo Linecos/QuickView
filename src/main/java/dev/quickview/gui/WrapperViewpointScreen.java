@@ -28,6 +28,11 @@ public class WrapperViewpointScreen extends CottonClientScreen {
         this.parent = parent;
     }
 
+    @Nullable
+    public Screen getParent() {
+        return this.parent;
+    }
+
     @Override
     public void removed() {
         if (this.closeCallback != null) {
