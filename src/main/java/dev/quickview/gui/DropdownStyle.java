@@ -2,7 +2,6 @@ package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.client.BackgroundPainter;
 import io.github.cottonmc.cotton.gui.client.ScreenDrawing;
-import io.github.cottonmc.cotton.gui.widget.WWidget;
 
 /**
  * 下拉列表的统一视觉：原版风格的深色悬浮面板（描边 + 上亮下暗斜面边）。

@@ -82,10 +82,6 @@ public class QuickViewManager {
         return viewActive;
     }
 
-    public Viewpoint getActiveViewpoint() {
-        return activeViewpoint;
-    }
-
     public boolean isQuickAddEnabled() {
         return config.isQuickAddEnabled();
     }
@@ -315,6 +311,19 @@ public class QuickViewManager {
     public void removeViewpoint(int index) {
         if (index >= 0 && index < viewpoints.size()) {
             viewpoints.remove(index);
+            saveViewpoints();
+        }
+    }
+
+    /** 批量删除：一次落盘（逐个 removeViewpoint 会重复 save）。按对象身份移除，与拖拽/勾选一致。 */
+    public void removeViewpoints(List<Viewpoint> toRemove) {
+        if (toRemove == null || toRemove.isEmpty()) {
+            return;
+        }
+        java.util.Set<Viewpoint> set = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        set.addAll(toRemove);
+        boolean changed = viewpoints.removeIf(set::contains);
+        if (changed) {
             saveViewpoints();
         }
     }

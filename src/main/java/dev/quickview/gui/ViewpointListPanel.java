@@ -38,6 +38,11 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
     private static final int GHOST_FILL = 0xE0101010;
     private static final int GHOST_BORDER = 0xFFFFD166;
     private static final int GHOST_TEXT = 0xFFFFFFFF;
+    /** 批量删除勾选态：浅红包裹 + 红边框（与排序落点预览同构，颜色换成危险红）。 */
+    private static final int SELECT_FILL = 0x40FF5555;
+    private static final int SELECT_BORDER = 0xFFFF5555;
+    /** 指针在面板外时给子控件传的「屏幕外」坐标，让 hover 判定为 false。 */
+    private static final int HOVER_OFF = -1_000_000;
 
     private final WTextField search;
     private final List<D> allData;
@@ -54,6 +59,13 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
 
     private boolean sortMode;
     private int cellWidth;
+
+    /** 批量删除的选择模式：开启时点条目 = 勾选/取消勾选，而非触发点击动作。 */
+    private boolean selectMode;
+    /** 已勾选的数据（用身份集合，与拖拽一致，避免依赖 equals）。 */
+    private final java.util.Set<D> selected = new java.util.HashSet<>();
+    /** 勾选集合变化时回调（主界面据此更新「删除已选 (N)」按钮）。 */
+    private Runnable onSelectionChanged;
 
     private D draggingData;
     private String draggingLabel = "";
@@ -76,6 +88,56 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
         this.onReorder = onReorder;
     }
 
+    public void setOnSelectionChanged(Runnable onSelectionChanged) {
+        this.onSelectionChanged = onSelectionChanged;
+    }
+
+    /** 开关选择（批量删除）模式；关闭时清空勾选。 */
+    public void setSelectMode(boolean selectMode) {
+        this.selectMode = selectMode;
+        if (!selectMode) {
+            clearSelection();
+        }
+    }
+
+    /** 勾选集合（身份集合的拷贝）。 */
+    public List<D> getSelected() {
+        return new ArrayList<>(selected);
+    }
+
+    /** 勾选数量：省掉 {@link #getSelected()} 的整表拷贝（主界面刷新按钮文案时只关心数量）。 */
+    public int getSelectedCount() {
+        return selected.size();
+    }
+
+    /**
+     * 批量删除执行后清空勾选（主界面在删除成功后调用）。
+     * <p>空集合时直接返回：省掉一次无意义的 layout 与回调（{@code setData} 每次都走这里）。
+     */
+    public void clearSelection() {
+        if (selected.isEmpty()) {
+            return;
+        }
+        selected.clear();
+        if (onSelectionChanged != null) {
+            onSelectionChanged.run();
+        }
+        layout();
+    }
+
+    /** 点条目时切换勾选（由主界面在删除模式下调用）。 */
+    public void toggleSelected(D d) {
+        if (selected.contains(d)) {
+            selected.remove(d);
+        } else {
+            selected.add(d);
+        }
+        if (onSelectionChanged != null) {
+            onSelectionChanged.run();
+        }
+        layout();
+    }
+
     /** 开关排序模式；关闭时立刻结束进行中的拖拽状态。 */
     public void setSortMode(boolean sortMode) {
         this.sortMode = sortMode;
@@ -88,6 +150,7 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
         this.allData.clear();
         this.allData.addAll(newData);
         clearDragState();
+        clearSelection();
         applyFilter();
     }
 
@@ -267,36 +330,66 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
 
     @Override
     public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
-        super.paint(context, x, y, mouseX, mouseY);
+        // 指针在面板外时冻结鼠标坐标：滚动列表的末行会超出面板下缘，仍留在 children 里，
+        // 不冻结的话指针在面板下方（模式开关行那一带）也会让它亮起来 —— 点不到但会亮，像 bug。
+        boolean inside = mouseX >= 0 && mouseY >= 0 && mouseX < this.width && mouseY < this.height;
+        int px = inside ? mouseX : HOVER_OFF;
+        int py = inside ? mouseY : HOVER_OFF;
 
-        if (!sortMode || draggingData == null || cellWidth <= 0) {
-            return;
+        // 裁剪到面板范围：条目、勾选框、落点预览、拖拽幽灵都可能超出面板（LibGui 不裁剪），
+        // 不裁剪就会盖到下面的模式开关行上
+        context.enableScissor(x, y, x + this.width, y + this.height);
+        super.paint(context, x, y, px, py);
+
+        // 批量删除勾选态：给已勾选条目画浅红包裹 + 红边框（与排序落点预览同构）
+        if (selectMode && !selected.isEmpty() && cellWidth > 0) {
+            for (int i = 0; i < data.size(); i++) {
+                if (!selected.contains(data.get(i))) {
+                    continue;
+                }
+                int row = i / COLS;
+                int col = i % COLS;
+                int cellX = x + col * (cellWidth + COL_GAP);
+                int cellY = y + row * ROW_HEIGHT - scrollBar.getValue() + 1;
+                if (cellY + ENTRY_HEIGHT < y || cellY > y + this.height) {
+                    continue;
+                }
+                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, ENTRY_HEIGHT, SELECT_FILL);
+                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, 1, SELECT_BORDER);
+                ScreenDrawing.coloredRect(context, cellX, cellY + ENTRY_HEIGHT - 1, cellWidth, 1, SELECT_BORDER);
+                ScreenDrawing.coloredRect(context, cellX, cellY, 1, ENTRY_HEIGHT, SELECT_BORDER);
+                ScreenDrawing.coloredRect(context, cellX + cellWidth - 1, cellY, 1, ENTRY_HEIGHT, SELECT_BORDER);
+            }
         }
 
-        // 1) 落点预览：高亮光标所指的那一格（也就是松手后条目会停的位置）
-        int preview = dropIndex;
-        if (preview >= 0 && !data.isEmpty()) {
-            preview = Math.max(0, Math.min(preview, data.size() - 1));
-            int row = preview / COLS;
-            int col = preview % COLS;
-            int cellX = x + col * (cellWidth + COL_GAP);
-            int cellY = y + row * ROW_HEIGHT - scrollBar.getValue() + 1;
-            ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, ENTRY_HEIGHT, DROP_FILL);
-            ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, 1, DROP_BORDER);
-            ScreenDrawing.coloredRect(context, cellX, cellY + ENTRY_HEIGHT - 1, cellWidth, 1, DROP_BORDER);
-            ScreenDrawing.coloredRect(context, cellX, cellY, 1, ENTRY_HEIGHT, DROP_BORDER);
-            ScreenDrawing.coloredRect(context, cellX + cellWidth - 1, cellY, 1, ENTRY_HEIGHT, DROP_BORDER);
+        if (sortMode && draggingData != null && cellWidth > 0) {
+            // 1) 落点预览：高亮光标所指的那一格（也就是松手后条目会停的位置）
+            int preview = dropIndex;
+            if (preview >= 0 && !data.isEmpty()) {
+                preview = Math.max(0, Math.min(preview, data.size() - 1));
+                int row = preview / COLS;
+                int col = preview % COLS;
+                int cellX = x + col * (cellWidth + COL_GAP);
+                int cellY = y + row * ROW_HEIGHT - scrollBar.getValue() + 1;
+                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, ENTRY_HEIGHT, DROP_FILL);
+                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, 1, DROP_BORDER);
+                ScreenDrawing.coloredRect(context, cellX, cellY + ENTRY_HEIGHT - 1, cellWidth, 1, DROP_BORDER);
+                ScreenDrawing.coloredRect(context, cellX, cellY, 1, ENTRY_HEIGHT, DROP_BORDER);
+                ScreenDrawing.coloredRect(context, cellX + cellWidth - 1, cellY, 1, ENTRY_HEIGHT, DROP_BORDER);
+            }
+
+            // 2) 幽灵条目：跟着光标走。位置夹在面板范围内，避免被屏幕边缘裁掉
+            int ghostX = x + dragPanelX - cellWidth / 2;
+            int ghostY = y + dragPanelY - ENTRY_HEIGHT / 2;
+            ghostX = Math.max(x, Math.min(ghostX, x + this.width - cellWidth));
+            ghostY = Math.max(y, Math.min(ghostY, y + this.height - ENTRY_HEIGHT));
+
+            ScreenDrawing.coloredRect(context, ghostX - 1, ghostY - 1, cellWidth + 2, ENTRY_HEIGHT + 2, GHOST_BORDER);
+            ScreenDrawing.coloredRect(context, ghostX, ghostY, cellWidth, ENTRY_HEIGHT, GHOST_FILL);
+            ScreenDrawing.drawString(context, fit(draggingLabel, cellWidth - 8), ghostX + 4, ghostY + 6, GHOST_TEXT);
         }
 
-        // 2) 幽灵条目：跟着光标走。位置夹在面板范围内，避免被屏幕边缘裁掉
-        int ghostX = x + dragPanelX - cellWidth / 2;
-        int ghostY = y + dragPanelY - ENTRY_HEIGHT / 2;
-        ghostX = Math.max(x, Math.min(ghostX, x + this.width - cellWidth));
-        ghostY = Math.max(y, Math.min(ghostY, y + this.height - ENTRY_HEIGHT));
-
-        ScreenDrawing.coloredRect(context, ghostX - 1, ghostY - 1, cellWidth + 2, ENTRY_HEIGHT + 2, GHOST_BORDER);
-        ScreenDrawing.coloredRect(context, ghostX, ghostY, cellWidth, ENTRY_HEIGHT, GHOST_FILL);
-        ScreenDrawing.drawString(context, fit(draggingLabel, cellWidth - 8), ghostX + 4, ghostY + 6, GHOST_TEXT);
+        context.disableScissor();
     }
 
     /** 幽灵条目宽度有限，按实际字体宽度裁一下，免得文字溢出框外。 */
@@ -380,6 +473,7 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
             w.setSize(cellWidth, ENTRY_HEIGHT);
             ((IWWidget) w).setX(x);
             ((IWWidget) w).setY(y + 1);
+            w.setSelected(selected.contains(d));
 
             this.children.add(w);
         }

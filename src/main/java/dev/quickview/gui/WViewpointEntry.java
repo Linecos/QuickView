@@ -29,9 +29,12 @@ public class WViewpointEntry extends WButton {
     private boolean pressed;
     private boolean dragging;
     private boolean suppressClick;
+    private boolean selected;
     private int pressX;
     private int pressY;
     private int normalColor;
+    /** 勾选态的文字色（与边框同系的红，表示「将被删除」）。 */
+    private static final int SELECTED_COLOR = 0xFFE06060;
 
     /** 由列表面板实现，负责把条目在列表里的移动落到实处。 */
     public interface DragHost {
@@ -54,13 +57,15 @@ public class WViewpointEntry extends WButton {
         this.dragHost = dragHost;
     }
 
-    public boolean isDragging() {
-        return dragging;
-    }
-
     /** 拖拽中的源条目视觉：变暗表示「已被拿起」。 */
     public void setDragSource(boolean dragSource) {
         this.color = dragSource ? DRAG_SOURCE_COLOR : normalColor;
+    }
+
+    /** 批量删除勾选态：文字变红（红色边框/浅红包裹由列表面板画）。 */
+    public void setSelected(boolean selected) {
+        this.selected = selected;
+        this.color = selected ? SELECTED_COLOR : normalColor;
     }
 
     @Override

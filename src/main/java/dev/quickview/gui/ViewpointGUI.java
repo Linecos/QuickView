@@ -7,9 +7,7 @@ import io.github.cottonmc.cotton.gui.client.BackgroundPainter;
 import io.github.cottonmc.cotton.gui.client.LightweightGuiDescription;
 import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.WGridPanel;
-import io.github.cottonmc.cotton.gui.widget.WLabel;
 import io.github.cottonmc.cotton.gui.widget.WToggleButton;
-import io.github.cottonmc.cotton.gui.widget.data.VerticalAlignment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -48,10 +46,23 @@ public class ViewpointGUI extends LightweightGuiDescription {
             .setOnClick(this::toggleGroupList);
     private final WButton settingsBtn = new WGearButton()
             .setOnClick(this::settingsCallback);
-    /** 说明当前「模式」选中后点条目会发生什么；都没选中时不给文案，避免多一行无用的提示。 */
-    private final WLabel modeHint = new WLabel(Text.literal(""), 0xFFAAAAAA)
-            .setVerticalAlignment(VerticalAlignment.CENTER);
-
+    /** 垃圾桶图标无状态，两处（删除提示 + 删除已选按钮）共用一个实例。 */
+    private static final TrashIcon TRASH = new TrashIcon();
+    /** 批量删除的「删除已选 (N)」按钮：垃圾桶图标 + 数量。 */
+    private final WButton deleteSelectedBtn = new WButton(TRASH, Text.translatable("quickview.gui.main.deleteSelected", 0))
+            .setOnClick(this::deleteSelectedCallback);
+    /**
+     * 动作行中间格的「模式提示」：一个带按钮背景、disabled 的 WButton，文字按模式变化。
+     * 分两个实例 —— hintPlain（无图标，编辑/排序用）和 hintTrash（垃圾桶图标紧贴文字左边，删除用），
+     * 切换模式时 add/remove 其一。都 disabled，只作提示框不可点。
+     */
+    private final WButton hintPlain = new WButton(Text.literal(""));
+    private final WButton hintTrash = new WButton(TRASH, Text.literal(""));
+    {
+        // 提示框不可点：只作带按钮背景的提示文字（disabled 时 WButton 文字变灰、底纹变暗）
+        hintPlain.setEnabled(false);
+        hintTrash.setEnabled(false);
+    }
     private final ViewpointListPanel<Viewpoint> panel;
     /**
      * 下拉展开期间冻结全界面 hover：LibGui 遮挡不阻止 paint，下层控件会照常按鼠标位置
@@ -79,12 +90,16 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private WGridPanel groupListPanel;
     /** 展开列表时铺满面板的透明挡板，点列表外先把列表收起。 */
     private ClickCatcher groupCatcher;
+    /** 动作行中间格当前放的是谁（LibGui 15.1.0 无 setVisible，用 add/remove 切换）。 */
+    private enum MiddleSlot { RESTORE, HINT_PLAIN, HINT_TRASH, DELETE_SELECTED }
+    private MiddleSlot middleSlot = MiddleSlot.RESTORE;
 
     public ViewpointGUI() {
         manager.loadViewpoints();
         this.panel = new ViewpointListPanel<>(new ArrayList<>(), this::createEntry, this::configureEntry,
                 this.search, vp -> PinyinSearch.keysOf(vp.getName()));
         this.panel.setOnReorder(manager::reorderVisible);
+        this.panel.setOnSelectionChanged(this::refreshActionRow);
         this.setupRoot();
         this.setRootPanel(root);
         this.search.setChangedListener(s -> {
@@ -96,7 +111,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.refreshList();
         // 不在自由视角时「恢复视角」点了不会有任何反应，直接置灰
         this.restoreBtn.setEnabled(manager.isViewActive());
-        this.updateModeHint();
+        this.refreshActionRow();
     }
 
     private WViewpointEntry createEntry() {
@@ -116,7 +131,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
             if (editBtn.getToggle()) {
                 openEditScreen(vp);
             } else if (deleteBtn.getToggle()) {
-                openDeleteConfirm(vp);
+                // 批量删除模式：点条目 = 勾选/取消勾选，最后用「删除已选」统一确认
+                panel.toggleSelected(vp);
             } else {
                 manager.switchToViewpoint(vp);
                 MinecraftClient.getInstance().setScreen(null);
@@ -127,22 +143,20 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void setupRoot() {
         this.root.setSize(350, 250);
 
-        // 第一行：左上角是分组切换（按钮本身点开下拉，不需要单独的 ∨ 按钮），
-        // 右侧是搜索框 + 清空。分组块收窄到 12 格（60px）—— 一般分组名不会太长，
-        // 宽按钮反而抢视觉；省出的空间全给搜索框（拼音输入更长更好打）。
+        // 第一行：左上角分组切换（按钮本身点开下拉），右侧搜索框。搜索框补位到行尾，
+        // 「清空 ×」不再是独立方块按钮（会被误当关闭页面），改成叠在搜索框内部右端的透明图标。
         this.root.add(this.groupBtn, 1, 1, 12, 4);
-        this.root.add(this.search, 14, 1, 50, 4);
-        this.root.add(this.clearBtn, 65, 1, 4, 4);
+        this.root.add(this.search, 14, 1, 54, 4);
+        this.root.add(this.clearBtn, 65, 1, 3, 4);
 
         this.root.add(this.panel, 1, 6, 68, 33);
 
-        // 第二行：三个「模式开关」，彼此互斥，改变「点条目」的含义；右侧是随模式变化的说明文字
+        // 第二行：三个「模式开关」，彼此互斥，改变「点条目」的含义；顺序：编辑 → 排序 → 删除
         this.root.add(this.editBtn, 1, 40, 11, 4);
-        this.root.add(this.deleteBtn, 14, 40, 11, 4);
-        this.root.add(this.sortBtn, 27, 40, 11, 4);
-        this.root.add(this.modeHint, 39, 40, 30, 4);
+        this.root.add(this.sortBtn, 14, 40, 11, 4);
+        this.root.add(this.deleteBtn, 27, 40, 11, 4);
 
-        // 第三行：动作按钮，点了立即生效
+        // 第三行：动作按钮。中间格按模式复用 —— 无模式=恢复视角；编辑/排序=提示按钮；删除=垃圾桶提示/删除已选。
         this.root.add(this.addBtn, 1, 45, 8, 4);
         this.root.add(this.restoreBtn, 10, 45, 54, 4);
         this.root.add(this.settingsBtn, 65, 45, 4, 4);
@@ -285,10 +299,6 @@ public class ViewpointGUI extends LightweightGuiDescription {
     }
 
     /** 删除前先弹一次确认，避免「删除」开关打开时误点条目直接永久删除。 */
-    private void openDeleteConfirm(Viewpoint vp) {
-        openDeleteConfirm(vp, MinecraftClient.getInstance().currentScreen);
-    }
-
     private void openDeleteConfirm(Viewpoint vp, Screen parent) {
         int idx = manager.getViewpoints().indexOf(vp);
         // 空名书签显示「未命名」，避免出现「确定删除「」吗？」
@@ -337,7 +347,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
             this.deleteBtn.setToggle(false);
             setSortMode(false);
         }
-        updateModeHint();
+        refreshActionRow();
     }
 
     private void deleteBtnCallback(Boolean toggled) {
@@ -345,7 +355,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
             this.editBtn.setToggle(false);
             setSortMode(false);
         }
-        updateModeHint();
+        panel.setSelectMode(toggled);
+        refreshActionRow();
     }
 
     private void sortBtnCallback(Boolean toggled) {
@@ -354,23 +365,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
             this.deleteBtn.setToggle(false);
         }
         setSortMode(toggled);
-        updateModeHint();
-    }
-
-    /** 根据当前选中的模式，更新右侧的说明文字。 */
-    private void updateModeHint() {
-        Text hint;
-        if (editBtn.getToggle()) {
-            hint = Text.translatable("quickview.gui.main.modeHint.edit");
-        } else if (deleteBtn.getToggle()) {
-            hint = Text.translatable("quickview.gui.main.modeHint.delete");
-        } else if (sortBtn.getToggle()) {
-            hint = Text.translatable("quickview.gui.main.modeHint.sort");
-        } else {
-            // 没选模式时不提示（用户反馈这句话没必要）
-            hint = Text.literal("");
-        }
-        modeHint.setText(hint);
+        refreshActionRow();
     }
 
     /** 排序模式与编辑/删除开关互斥：同一时刻只有一种「点条目的含义」。 */
@@ -379,6 +374,80 @@ public class ViewpointGUI extends LightweightGuiDescription {
             sortBtn.setToggle(enabled);
         }
         panel.setSortMode(enabled);
+    }
+
+    /**
+     * 刷新动作行中间格（模式切换、勾选变化时都调它）：
+     * <ul>
+     *   <li>删除模式且有勾选 → 「删除已选 (N)」按钮</li>
+     *   <li>编辑/排序 → 无图标提示按钮；删除(未勾选) → 垃圾桶图标提示按钮</li>
+     *   <li>无模式 → 「恢复视角」按钮</li>
+     * </ul>
+     */
+    private void refreshActionRow() {
+        boolean editMode = editBtn.getToggle();
+        boolean deleteMode = deleteBtn.getToggle();
+        boolean sortMode = sortBtn.getToggle();
+        int selectedCount = panel.getSelectedCount();
+
+        MiddleSlot target;
+        if (deleteMode && selectedCount > 0) {
+            target = MiddleSlot.DELETE_SELECTED;
+        } else if (editMode) {
+            hintPlain.setLabel(Text.translatable("quickview.gui.main.modeHint.edit"));
+            target = MiddleSlot.HINT_PLAIN;
+        } else if (sortMode) {
+            hintPlain.setLabel(Text.translatable("quickview.gui.main.modeHint.sort"));
+            target = MiddleSlot.HINT_PLAIN;
+        } else if (deleteMode) {
+            hintTrash.setLabel(Text.translatable("quickview.gui.main.modeHint.delete"));
+            target = MiddleSlot.HINT_TRASH;
+        } else {
+            target = MiddleSlot.RESTORE;
+        }
+        swapActionMiddle(target);
+
+        deleteSelectedBtn.setLabel(Text.translatable("quickview.gui.main.deleteSelected", selectedCount));
+        deleteSelectedBtn.setEnabled(selectedCount > 0);
+    }
+
+    /** 把动作行中间格换成指定槽位。LibGui 15.1.0 没有 setVisible，只能 add/remove 切换。 */
+    private void swapActionMiddle(MiddleSlot target) {
+        if (target == middleSlot) {
+            return;
+        }
+        switch (middleSlot) {
+            case RESTORE -> this.root.remove(restoreBtn);
+            case HINT_PLAIN -> this.root.remove(hintPlain);
+            case HINT_TRASH -> this.root.remove(hintTrash);
+            case DELETE_SELECTED -> this.root.remove(deleteSelectedBtn);
+        }
+        switch (target) {
+            case RESTORE -> this.root.add(restoreBtn, 10, 45, 54, 4);
+            case HINT_PLAIN -> this.root.add(hintPlain, 10, 45, 54, 4);
+            case HINT_TRASH -> this.root.add(hintTrash, 10, 45, 54, 4);
+            case DELETE_SELECTED -> this.root.add(deleteSelectedBtn, 10, 45, 54, 4);
+        }
+        middleSlot = target;
+        this.root.validate(this);
+    }
+
+    /** 点「删除已选」：统一弹一次确认，确认后批量删除并清空勾选。 */
+    private void deleteSelectedCallback() {
+        List<Viewpoint> toDelete = panel.getSelected();
+        if (toDelete.isEmpty()) {
+            return;
+        }
+        Screen parent = MinecraftClient.getInstance().currentScreen;
+        ConfirmGUI confirm = new ConfirmGUI(
+                Text.translatable("quickview.gui.confirm.deleteSelected", toDelete.size()),
+                parent,
+                () -> manager.removeViewpoints(toDelete));
+        confirm.setConfirmLabel(Text.translatable("quickview.gui.main.delete"));
+        WrapperViewpointScreen screen = new WrapperViewpointScreen(confirm);
+        screen.setParent(parent);
+        screen.setCloseCallback(this::refreshList);
+        MinecraftClient.getInstance().setScreen(screen);
     }
 
     @Override

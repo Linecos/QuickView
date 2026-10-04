@@ -95,7 +95,7 @@ public class QuickViewKeybindings {
                     MinecraftClient.getInstance().setScreen(null);
                     return;
                 }
-                manager.loadViewpoints();
+                // ViewpointGUI 构造函数里已经 loadViewpoints()，这里不重复读盘
                 ViewpointGUI gui = new ViewpointGUI();
                 WrapperViewpointScreen screen = new WrapperViewpointScreen(gui);
                 screen.setParent(current);

@@ -61,10 +61,6 @@ public final class QuickViewConfig {
         return Math.min(value, MAX_TRANSITION_MILLIS);
     }
 
-    public int getVersion() {
-        return version;
-    }
-
     public boolean isQuickAddEnabled() {
         return quickAddEnabled;
     }
