@@ -53,17 +53,32 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
       - name: 下载构建产物
         uses: actions/download-artifact@v4
         with:
           name: quickview-jar
           path: jars
 
+      # 优先用仓库里手写的版本说明（.github/release-notes/<tag>.md），
+      # 找不到才回退到 gh 自动生成的 commit 列表。
       - name: 创建 Release 并附加 jar
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" jars/*.jar \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "QuickView ${GITHUB_REF_NAME}" \
-            --generate-notes
+          NOTES_FILE=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            echo "使用手写说明：$NOTES_FILE"
+            gh release create "${GITHUB_REF_NAME}" jars/*.jar \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "QuickView ${GITHUB_REF_NAME}" \
+              --notes-file "$NOTES_FILE"
+          else
+            echo "未找到 $NOTES_FILE，使用自动生成的说明"
+            gh release create "${GITHUB_REF_NAME}" jars/*.jar \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "QuickView ${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi

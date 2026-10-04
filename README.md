@@ -180,6 +180,9 @@ src/main/java/dev/quickview/
 - `main`：只放正式发布版本，first-parent 链即发布线
 - `dev`：日常开发分支，功能与修复都提交在这里
 - 发布时：`main` 合并 `dev` → 在 `main` 上升版本号并打 tag → 构建正式 jar → 版本号改动合并回 `dev`
+- **Release 说明**：发版前把面向用户的说明放到 `.github/release-notes/<tag>.md`（例如
+  [`.github/release-notes/v1.0.2.md`](.github/release-notes/v1.0.2.md)），打 tag 后 CI 会用它作为 Release 正文；
+  没有这个文件时才回退到自动生成的 commit 列表
 
 ## 更新日志
 
