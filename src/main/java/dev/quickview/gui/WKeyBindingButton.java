@@ -25,7 +25,8 @@ public class WKeyBindingButton extends WButton {
         return this;
     }
 
-    public boolean isAtDefault(int defaultKey) {
+    /** 当前绑定是否就是原版默认键（直接用 KeyBinding.isDefault()，无需比对 InputUtil.Key）。 */
+    public boolean isAtDefault() {
         return keyBinding.isDefault();
     }
 

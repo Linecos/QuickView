@@ -115,10 +115,10 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         WButton resetBtn = new WButton(Text.translatable("quickview.gui.settings.key.reset"))
                 .setAlignment(HorizontalAlignment.CENTER)
                 .setOnClick(() -> keyBtn.resetToDefault(defaultKey));
-        resetBtn.setEnabled(!keyBtn.isAtDefault(defaultKey));
+        resetBtn.setEnabled(!keyBtn.isAtDefault());
         row.add(resetBtn, 292, 2, 28, 20);
 
-        keyBtn.setOnChange(() -> resetBtn.setEnabled(!keyBtn.isAtDefault(defaultKey)));
+        keyBtn.setOnChange(() -> resetBtn.setEnabled(!keyBtn.isAtDefault()));
 
         return row;
     }

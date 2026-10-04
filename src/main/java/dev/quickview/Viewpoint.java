@@ -27,7 +27,6 @@ public class Viewpoint {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getDimension() { return dimension; }
-    public void setDimension(String dimension) { this.dimension = dimension; }
     public double getX() { return x; }
     public void setX(double x) { this.x = x; }
     public double getY() { return y; }
@@ -39,13 +38,16 @@ public class Viewpoint {
     public float getPitch() { return pitch; }
     public void setPitch(float pitch) { this.pitch = pitch; }
     public long getTimestamp() { return timestamp; }
-    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 
-    public String getFormattedCoords() {
-        return String.format("X: %.1f  Y: %.1f  Z: %.1f", x, y, z);
-    }
-
-    public String getFormattedRotation() {
-        return String.format("Yaw: %.1f  Pitch: %.1f", yaw, pitch);
+    /**
+     * 仅用于日志/调试，返回书签名称而非默认的对象哈希。
+     * <p>
+     * <b>列表搜索不要依赖这里</b>：搜索键由 {@code ViewpointListPanel} 的 searchKey 参数显式指定
+     * （见 {@code ViewpointGUI} 里的 {@code Viewpoint::getName}）。曾把维度拼进来当作搜索键，
+     * 结果维度名里的字母（如 {@code minecraft} 里的 a）会让单字母搜索误命中。
+     */
+    @Override
+    public String toString() {
+        return name == null ? "" : name;
     }
 }

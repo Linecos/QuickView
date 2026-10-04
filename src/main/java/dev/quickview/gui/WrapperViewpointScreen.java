@@ -15,8 +15,6 @@ public class WrapperViewpointScreen extends CottonClientScreen {
     private Runnable closeCallback;
     @Nullable
     private Screen parent;
-    @Nullable
-    private Runnable returnAction;
 
     public WrapperViewpointScreen(GuiDescription description) {
         super(description);
@@ -28,10 +26,6 @@ public class WrapperViewpointScreen extends CottonClientScreen {
 
     public void setParent(@Nullable Screen parent) {
         this.parent = parent;
-    }
-
-    public void setReturnAction(@Nullable Runnable returnAction) {
-        this.returnAction = returnAction;
     }
 
     @Override
@@ -53,9 +47,6 @@ public class WrapperViewpointScreen extends CottonClientScreen {
         boolean isEscape = keyInput.key() == GLFW.GLFW_KEY_ESCAPE;
         if (isEscape && this.parent != null) {
             MinecraftClient.getInstance().setScreen(this.parent);
-            if (this.returnAction != null) {
-                this.returnAction.run();
-            }
             return true;
         }
         return super.keyPressed(keyInput);

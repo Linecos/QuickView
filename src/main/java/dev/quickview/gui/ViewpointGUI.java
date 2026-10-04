@@ -1,5 +1,6 @@
 package dev.quickview.gui;
 
+import dev.quickview.PinyinSearch;
 import dev.quickview.QuickViewManager;
 import dev.quickview.Viewpoint;
 import io.github.cottonmc.cotton.gui.client.BackgroundPainter;
@@ -8,6 +9,7 @@ import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.WGridPanel;
 import io.github.cottonmc.cotton.gui.widget.WToggleButton;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
@@ -36,7 +38,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
     public ViewpointGUI() {
         manager.loadViewpoints();
         List<Viewpoint> data = new ArrayList<>(manager.getViewpoints());
-        this.panel = new ViewpointListPanel<>(data, this::createEntry, this::configureEntry, this.search);
+        this.panel = new ViewpointListPanel<>(data, this::createEntry, this::configureEntry,
+                this.search, vp -> PinyinSearch.keysOf(vp.getName()));
         this.setupRoot();
         this.setRootPanel(root);
         this.search.setChangedListener(s -> this.panel.applyFilter());
@@ -50,21 +53,9 @@ public class ViewpointGUI extends LightweightGuiDescription {
         btn.setLabel(Text.literal(vp.getName()));
         btn.setOnClick(() -> {
             if (editBtn.getToggle()) {
-                int idx = manager.getViewpoints().indexOf(vp);
-                ViewpointEditGUI editGui = new ViewpointEditGUI(vp, idx);
-                WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
-                screen.setCloseCallback(() -> {
-                    editGui.saveData();
-                    manager.loadViewpoints();
-                    panel.setData(new ArrayList<>(manager.getViewpoints()));
-                });
-                screen.setParent(MinecraftClient.getInstance().currentScreen);
-                MinecraftClient.getInstance().setScreen(screen);
+                openEditScreen(vp);
             } else if (deleteBtn.getToggle()) {
-                int idx = manager.getViewpoints().indexOf(vp);
-                manager.removeViewpoint(idx);
-                manager.loadViewpoints();
-                panel.setData(new ArrayList<>(manager.getViewpoints()));
+                openDeleteConfirm(vp);
             } else {
                 manager.switchToViewpoint(vp);
                 MinecraftClient.getInstance().setScreen(null);
@@ -86,16 +77,47 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
     private void addCallback() {
         Viewpoint vp = manager.createViewpoint("");
+        if (vp == null) return;
+        openEditScreen(vp);
+    }
+
+    /** 从磁盘重新读取列表并刷新面板（编辑/删除后统一走这里）。 */
+    private void refreshList() {
+        manager.loadViewpoints();
+        panel.setData(new ArrayList<>(manager.getViewpoints()));
+    }
+
+    /** 打开书签编辑面板；关闭时保存改动并刷新列表。 */
+    private void openEditScreen(Viewpoint vp) {
         int idx = manager.getViewpoints().indexOf(vp);
         ViewpointEditGUI editGui = new ViewpointEditGUI(vp, idx);
         WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
         screen.setCloseCallback(() -> {
             editGui.saveData();
-            manager.loadViewpoints();
-            panel.setData(new ArrayList<>(manager.getViewpoints()));
+            refreshList();
         });
         screen.setParent(MinecraftClient.getInstance().currentScreen);
         MinecraftClient.getInstance().setScreen(screen);
+    }
+
+    /** 删除前先弹一次确认，避免「删除」开关打开时误点条目直接永久删除。 */
+    private void openDeleteConfirm(Viewpoint vp) {
+        Screen parent = MinecraftClient.getInstance().currentScreen;
+        int idx = manager.getViewpoints().indexOf(vp);
+        ConfirmGUI confirm = new ConfirmGUI(
+                Text.translatable("quickview.gui.confirm.delete", shorten(vp.getName())),
+                parent,
+                () -> manager.removeViewpoint(idx));
+        WrapperViewpointScreen screen = new WrapperViewpointScreen(confirm);
+        screen.setParent(parent);
+        screen.setCloseCallback(this::refreshList);
+        MinecraftClient.getInstance().setScreen(screen);
+    }
+
+    /** 确认框一行放不下过长的书签名，超出部分用省略号截断。 */
+    private static String shorten(String name) {
+        if (name == null) return "";
+        return name.length() <= 20 ? name : name.substring(0, 20) + "…";
     }
 
     private void restoreCallback() {

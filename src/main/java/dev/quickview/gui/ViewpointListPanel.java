@@ -8,21 +8,29 @@ import io.github.cottonmc.cotton.gui.widget.WWidget;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
     private final WTextField search;
     private final List<D> allData;
+    /**
+     * 从元素取出「参与搜索的全部文本」。显式传入，避免依赖 toString() 造成的隐式耦合；
+     * 返回多个键是为了支持拼音（原文 / 全拼 / 声母任一命中即算匹配）。
+     */
+    private final Function<D, List<String>> searchKeys;
     private static final int ROW_HEIGHT = 22;
     private static final int COLS = 4;
     private static final int COL_GAP = 5;
 
-    public ViewpointListPanel(List<D> data, Supplier<W> supplier, BiConsumer<D, W> configurator, WTextField search) {
+    public ViewpointListPanel(List<D> data, Supplier<W> supplier, BiConsumer<D, W> configurator,
+                              WTextField search, Function<D, List<String>> searchKeys) {
         super(new ArrayList<>(data), supplier, configurator);
         this.allData = data;
         this.search = search;
+        this.searchKeys = searchKeys;
         scrollBar.setScrollingSpeed(8);
     }
 
@@ -33,19 +41,38 @@ public class ViewpointListPanel<D, W extends WWidget> extends WListPanel<D, W> {
     }
 
     public void applyFilter() {
-        if (this.search == null || this.search.getText().isEmpty()) {
-            this.data.clear();
+        this.data.clear();
+
+        String query = (search == null || search.getText() == null)
+                ? ""
+                : search.getText().trim().toLowerCase(Locale.ROOT);
+        if (query.isEmpty()) {
             this.data.addAll(allData);
         } else {
-            String query = this.search.getText().trim().toLowerCase();
-            this.data.clear();
-            this.data.addAll(allData.stream()
-                    .filter(d -> d.toString().toLowerCase().contains(query))
-                    .collect(Collectors.toList()));
+            for (D d : allData) {
+                if (matches(d, query)) {
+                    this.data.add(d);
+                }
+            }
         }
+
         this.configured.clear();
         this.scrollBar.setValue(0);
         this.layout();
+    }
+
+    /** 任一搜索键包含 query 即算命中。 */
+    private boolean matches(D d, String query) {
+        List<String> keys = searchKeys == null ? null : searchKeys.apply(d);
+        if (keys == null) {
+            return false;
+        }
+        for (String key : keys) {
+            if (key != null && key.contains(query)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")

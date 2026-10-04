@@ -28,6 +28,8 @@ QuickView 把「相机机位」变成可保存的书签：记录坐标 + 朝向 
 - **跟随鼠标**：默认第一人称，按 `F5` 切第三人称时能看到并检查玩家本体
 - **自由视角下隐藏手持物品**，避免手臂遮挡画面
 - **可自定义按键**：设置页内置按键捕获按钮，支持重置为默认
+- **拼音搜索**：书签列表支持中文、全拼、声母三种输入，且**多音字按词组上下文取音**
+  （`家里蹲` 可搜 `jia` / `jialidun` / `jld`；`矿洞Boss房` 可搜 `kdbf`；`重庆` 可搜 `cq` / `chongqing`）
 - **分类存储**：多人服务器按服务器地址、单人按存档名，再按维度分文件
 
 ## 环境要求
@@ -73,7 +75,8 @@ QuickView 把「相机机位」变成可保存的书签：记录坐标 + 朝向 
 ## 界面说明
 
 - **主菜单**：搜索框 + 书签列表 + `+` / 编辑 / 删除 / 恢复视角 / 设置
-  - 打开「编辑」开关后点书签条目进入编辑面板；打开「删除」开关后点条目即删除
+  - 搜索框支持中文原文、全拼、声母（不区分大小写，自动忽略首尾空格）。多音字由词级分词处理
+  - 打开「编辑」开关后点书签条目进入编辑面板；打开「删除」开关后点条目会**先弹二次确认**，确认后才删除
 - **编辑面板**：名称、X / Y / Z / Yaw / Pitch（仅允许数值），右下角「设为当前」把当前相机机位写入该书签
 - **设置页**：双 Tab
   - 功能：快速添加、自由移动、灵魂出窍优先
@@ -97,9 +100,18 @@ QuickView 把「相机机位」变成可保存的书签：记录坐标 + 朝向 
 .minecraft/quickview/<服务器地址或存档名>/<维度>.json
 ```
 
+文件内容是带版本号的对象，便于以后升级格式：
+
+```json
+{ "version": 1, "viewpoints": [ { "name": "Home", "dimension": "minecraft:overworld", "x": 0.0, ... } ] }
+```
+
+（1.0.1 及更早版本的裸数组格式仍可正常读取，保存时会自动升级。）
+
 - 多人服务器：用服务器地址作为上下文，切换服务器不会串数据
 - 单人存档：用存档名作为上下文
 - 维度：`minecraft:overworld` / `minecraft:the_nether` / `minecraft:the_end` 等各存一份
+- 写入采用「临时文件 + 原子替换」，中途崩溃不会损坏已有书签
 
 直接删除对应 JSON 即可清空该书签列表。
 
@@ -155,3 +167,13 @@ src/main/java/dev/quickview/
 ## 许可
 
 本项目采用 MIT 许可（`fabric.mod.json` 中的 `license` 字段为 `MIT`）。
+
+### 内置的第三方库
+
+以下库通过 Loom 的 `include` 打进 mod jar（jar-in-jar，位于 `META-INF/jars/`），**无需用户单独安装**：
+
+| 库 | 版本 | 许可 | 用途 |
+|---|---|---|---|
+| [houbb/pinyin](https://github.com/houbb/pinyin) | 0.4.0 | Apache License 2.0 | 汉字转拼音、多音字词级消歧 |
+| [houbb/heaven](https://github.com/houbb/heaven) | 0.2.0 | Apache License 2.0 | houbb/pinyin 的运行时依赖 |
+| [houbb/nlp-common](https://github.com/houbb/nlp-common) | 0.0.5 | Apache License 2.0 | 分词用的 trie/dfa，houbb/pinyin 依赖 |

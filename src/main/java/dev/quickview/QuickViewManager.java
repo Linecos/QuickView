@@ -295,6 +295,11 @@ public class QuickViewManager {
         ClientPlayerEntity player = client.player;
         if (player == null) return;
 
+        // 必须在 viewActive 置位前取值：若已经是自由视角（例如在菜单里又点了另一个书签），
+        // options 里的视角此时已被强制成 FIRST_PERSON，再存一次会把玩家真正的原始视角
+        // 覆盖掉，恢复时就回不去了。
+        boolean firstEntry = !viewActive;
+
         activeViewpoint = vp;
         viewActive = true;
         freeX = vp.getX();
@@ -309,7 +314,9 @@ public class QuickViewManager {
         velStrafe = 0.0;
         velVertical = 0.0;
 
-        savedPerspective = client.options.getPerspective();
+        if (firstEntry) {
+            savedPerspective = client.options.getPerspective();
+        }
         client.options.setPerspective(Perspective.FIRST_PERSON);
     }
 
@@ -324,5 +331,34 @@ public class QuickViewManager {
         velForward = 0.0;
         velStrafe = 0.0;
         velVertical = 0.0;
+    }
+
+    /**
+     * 断线 / 退出世界时调用：还原视角并彻底清空自由视角状态。
+     * <p>
+     * 若不做这一步，单例状态会跨世界残留：进入下一个世界时相机被 {@code CameraMixin} 锁在旧坐标
+     * （可能还是另一个维度），同时移动输入被清零，角色动不了。
+     */
+    public void clearViewState() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (savedPerspective != null) {
+            client.options.setPerspective(savedPerspective);
+            savedPerspective = null;
+        }
+        viewActive = false;
+        activeViewpoint = null;
+
+        velForward = 0.0;
+        velStrafe = 0.0;
+        velVertical = 0.0;
+
+        prevX = 0.0;
+        prevY = 0.0;
+        prevZ = 0.0;
+        freeX = 0.0;
+        freeY = 0.0;
+        freeZ = 0.0;
+        freeYaw = 0.0f;
+        freePitch = 0.0f;
     }
 }

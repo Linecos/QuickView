@@ -4,6 +4,7 @@ import dev.quickview.gui.ViewpointGUI;
 import dev.quickview.gui.WrapperViewpointScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -58,6 +59,14 @@ public class QuickViewKeybindings {
         DEFAULT_KEYS.put(toggleFreecamPriorityKey, GLFW.GLFW_KEY_H);
 
         ClientTickEvents.START_CLIENT_TICK.register(client -> QuickViewManager.getInstance().onTickStart());
+
+        // 断线 / 退出世界时清空自由视角状态，避免 viewActive 与 savedPerspective 跨世界残留，
+        // 导致进入下一个世界时相机被锁在旧坐标、移动输入被清零。
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
+                QuickViewManager.getInstance().clearViewState());
+        // 兜底：万一 DISCONNECT 没触发（异常退出等），进新世界时再清一次。
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
+                QuickViewManager.getInstance().clearViewState());
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.world == null) return;

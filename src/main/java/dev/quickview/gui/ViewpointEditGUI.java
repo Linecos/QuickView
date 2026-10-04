@@ -73,12 +73,26 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         WTextFieldExtra field = new WTextFieldExtra();
         field.setTextPredicate(NUMBER_PREDICATE);
         field.setText(initial);
-        field.setFocusLostCallback(s -> applyCoordinates());
+        field.setFocusLostCallback(s -> {
+            applyCoordinates();
+            // 回填：输入为空或只有 "-" / "." 这类半截内容时 parse 会失败，若不回填，
+            // 输入框显示的内容会和模型里的真实值不一致。
+            refreshFields();
+        });
         return field;
     }
 
     private WLabel coordLabel(String text) {
         return new WLabel(Text.literal(text), 0xFFFFFFFF);
+    }
+
+    /** 用模型中的真实值刷新全部坐标/朝向输入框。 */
+    private void refreshFields() {
+        xField.setText(String.format("%.1f", viewpoint.getX()));
+        yField.setText(String.format("%.1f", viewpoint.getY()));
+        zField.setText(String.format("%.1f", viewpoint.getZ()));
+        yawField.setText(String.format("%.1f", viewpoint.getYaw()));
+        pitchField.setText(String.format("%.1f", viewpoint.getPitch()));
     }
 
     private void applyCoordinates() {
@@ -103,12 +117,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         viewpoint.setYaw(snapshot.getYaw());
         viewpoint.setPitch(snapshot.getPitch());
 
-        xField.setText(String.format("%.1f", viewpoint.getX()));
-        yField.setText(String.format("%.1f", viewpoint.getY()));
-        zField.setText(String.format("%.1f", viewpoint.getZ()));
-        yawField.setText(String.format("%.1f", viewpoint.getYaw()));
-        pitchField.setText(String.format("%.1f", viewpoint.getPitch()));
-
+        refreshFields();
         manager.saveViewpoints();
     }
 
