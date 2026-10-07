@@ -56,7 +56,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         }
     };
     private final Viewpoint viewpoint;
-    private final int viewpointIndex;
     private final WTextFieldExtra nameField = new WTextFieldExtra()
             .setSuggestion(Text.translatable("quickview.gui.edit.name"));
     private final WTextFieldExtra groupField = new WTextFieldExtra()
@@ -87,16 +86,15 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     /** 由主界面注入：点「删除该书签」时回调（主界面负责先关编辑页、再弹确认）。 */
     private Runnable onDeleteRequested;
 
-    public ViewpointEditGUI(Viewpoint viewpoint, int viewpointIndex) {
+    public ViewpointEditGUI(Viewpoint viewpoint) {
         this.viewpoint = viewpoint;
-        this.viewpointIndex = viewpointIndex;
         this.nameField.setText(viewpoint.getName());
         this.nameField.setFocusLostCallback(s -> {
             // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名
             if (s.isEmpty()) {
                 nameField.setText(viewpoint.getName());
             } else {
-                manager.renameViewpoint(viewpointIndex, s);
+                manager.renameViewpoint(viewpoint, s);
             }
             syncNameLength();
         });
@@ -328,7 +326,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         // 名字为空时不覆盖旧名：用户可能只是随手清了输入框，不该把书签变成无名
         String name = nameField.getText();
         if (!name.isEmpty()) {
-            manager.renameViewpoint(viewpointIndex, name);
+            manager.renameViewpoint(viewpoint, name);
         }
         applyCoordinates();
     }

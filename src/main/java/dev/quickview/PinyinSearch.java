@@ -34,6 +34,12 @@ import java.util.Locale;
 public final class PinyinSearch {
     private static final int KEY_CAPACITY = 6;
 
+    /**
+     * houbb 字典是懒加载的，初始化本身未必线程安全：预热线程与主线程同时首次调用可能竞争。
+     * 所有 PinyinHelper 调用都收拢到同一把锁里 —— 预热完成后无竞争的同步开销可忽略。
+     */
+    private static final Object PINYIN_LOCK = new Object();
+
     private PinyinSearch() {
     }
 
@@ -43,9 +49,16 @@ public final class PinyinSearch {
      */
     public static void warmUp() {
         try {
-            PinyinHelper.toPinyin("预热", PinyinStyleEnum.NORMAL, "");
+            convert("预热", PinyinStyleEnum.NORMAL);
         } catch (RuntimeException ignored) {
             // 预热失败不影响功能，真正用到时会再初始化一次
+        }
+    }
+
+    /** 所有 PinyinHelper 调用的唯一入口：持锁转换，保证字典初始化不会并发执行。 */
+    private static String convert(String s, PinyinStyleEnum style) {
+        synchronized (PINYIN_LOCK) {
+            return PinyinHelper.toPinyin(s, style, "");
         }
     }
 
@@ -72,7 +85,7 @@ public final class PinyinSearch {
     }
 
     private static String toPinyin(String name, PinyinStyleEnum style) {
-        String result = PinyinHelper.toPinyin(name, style, "");
+        String result = convert(name, style);
         return result == null ? "" : result.toLowerCase(Locale.ROOT);
     }
 
@@ -99,7 +112,7 @@ public final class PinyinSearch {
 
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
-            String converted = PinyinHelper.toPinyin(String.valueOf(c), PinyinStyleEnum.NORMAL, "");
+            String converted = convert(String.valueOf(c), PinyinStyleEnum.NORMAL);
 
             if (converted != null && !converted.isEmpty() && !converted.equals(String.valueOf(c))) {
                 String lower = converted.toLowerCase(Locale.ROOT);

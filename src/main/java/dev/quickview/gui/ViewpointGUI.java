@@ -279,10 +279,9 @@ public class ViewpointGUI extends LightweightGuiDescription {
         return groups;
     }
 
-    /** 打开书签编辑面板；关闭时保存改动并刷新列表。 */
+    /** 打开书签编辑面板；关闭时保存改动并刷新列表。直接持有 Viewpoint 引用，不依赖下标。 */
     private void openEditScreen(Viewpoint vp) {
-        int idx = manager.getViewpoints().indexOf(vp);
-        ViewpointEditGUI editGui = new ViewpointEditGUI(vp, idx);
+        ViewpointEditGUI editGui = new ViewpointEditGUI(vp);
         WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
         Screen main = MinecraftClient.getInstance().currentScreen;
         screen.setCloseCallback(() -> {
@@ -300,7 +299,6 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
     /** 删除前先弹一次确认，避免「删除」开关打开时误点条目直接永久删除。 */
     private void openDeleteConfirm(Viewpoint vp, Screen parent) {
-        int idx = manager.getViewpoints().indexOf(vp);
         // 空名书签显示「未命名」，避免出现「确定删除「」吗？」
         Text nameArg = vp.getName().isEmpty()
                 ? Text.translatable("quickview.gui.edit.unnamed")
@@ -308,7 +306,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
         ConfirmGUI confirm = new ConfirmGUI(
                 Text.translatable("quickview.gui.confirm.delete", nameArg),
                 parent,
-                () -> manager.removeViewpoint(idx));
+                () -> manager.removeViewpoint(vp));
         confirm.setConfirmLabel(Text.translatable("quickview.gui.main.delete"));
         WrapperViewpointScreen screen = new WrapperViewpointScreen(confirm);
         screen.setParent(parent);

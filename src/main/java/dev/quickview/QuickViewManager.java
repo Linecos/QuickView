@@ -308,9 +308,17 @@ public class QuickViewManager {
         return client.player;
     }
 
+    /** 按下标移除（仅限已知下标稳定时使用；GUI 层请用 {@link #removeViewpoint(Viewpoint)}）。 */
     public void removeViewpoint(int index) {
         if (index >= 0 && index < viewpoints.size()) {
             viewpoints.remove(index);
+            saveViewpoints();
+        }
+    }
+
+    /** 按对象身份移除单个书签并落盘（Viewpoint 未覆写 equals，remove 即身份比较）。 */
+    public void removeViewpoint(Viewpoint vp) {
+        if (viewpoints.remove(vp)) {
             saveViewpoints();
         }
     }
@@ -328,11 +336,18 @@ public class QuickViewManager {
         }
     }
 
+    /** 按下标改名（仅限已知下标稳定时使用；GUI 层请用 {@link #renameViewpoint(Viewpoint, String)}）。 */
     public void renameViewpoint(int index, String newName) {
         if (index >= 0 && index < viewpoints.size()) {
             viewpoints.get(index).setName(newName);
             saveViewpoints();
         }
+    }
+
+    /** 改名并落盘。持有 Viewpoint 引用时优先用这个，不依赖下标在列表变化后仍然有效。 */
+    public void renameViewpoint(Viewpoint vp, String newName) {
+        vp.setName(newName);
+        saveViewpoints();
     }
 
     public void switchToViewpoint(Viewpoint vp) {
