@@ -11,7 +11,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -139,7 +138,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
 
     /** @param inputMode true = 行内输入新分组名；false = 常规候选列表 */
     private void openGroupList(boolean inputMode) {
-        List<String> groups = existingGroups();
+        List<String> groups = manager.getGroups();
         DropdownListPanel list = new DropdownListPanel();
         list.setBackgroundPainter(DropdownStyle.LIST_BG);
 
@@ -221,18 +220,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             viewpoint.setGroup(value);
             closeGroupList();
         });
-    }
-
-    /** 按出现顺序收集已有分组名（与主界面分组筛选同一套规则）。 */
-    private List<String> existingGroups() {
-        List<String> groups = new ArrayList<>();
-        for (Viewpoint vp : manager.getViewpoints()) {
-            String group = vp.getGroup();
-            if (!group.isEmpty() && !groups.contains(group)) {
-                groups.add(group);
-            }
-        }
-        return groups;
     }
 
     private void syncNameLength() {

@@ -183,7 +183,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
     private void applyGroupFilter() {
         List<Viewpoint> all = manager.getViewpoints();
-        List<String> groups = groupsOf(all);
+        List<String> groups = manager.getGroups();
         if (!groupFilter.isEmpty() && !groups.contains(groupFilter)) {
             // 该分组已被改名或删空，退回「全部」
             groupFilter = "";
@@ -208,7 +208,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
             closeGroupList();
             return;
         }
-        List<String> groups = groupsOf(manager.getViewpoints());
+        List<String> groups = manager.getGroups();
         int rows = Math.min(groups.size() + 1, GROUP_MAX_ROWS);
 
         DropdownListPanel list = new DropdownListPanel();
@@ -265,18 +265,6 @@ public class ViewpointGUI extends LightweightGuiDescription {
                 ? Text.translatable("quickview.gui.main.groupAll")
                 : Text.literal(groupFilter));
         groupBtn.setEnabled(!groups.isEmpty());
-    }
-
-    /** 按出现顺序收集所有非空分组名。 */
-    private static List<String> groupsOf(List<Viewpoint> list) {
-        List<String> groups = new ArrayList<>();
-        for (Viewpoint vp : list) {
-            String group = vp.getGroup();
-            if (!group.isEmpty() && !groups.contains(group)) {
-                groups.add(group);
-            }
-        }
-        return groups;
     }
 
     /** 打开书签编辑面板；关闭时保存改动并刷新列表。直接持有 Viewpoint 引用，不依赖下标。 */

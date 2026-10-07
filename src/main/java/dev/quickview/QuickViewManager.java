@@ -225,6 +225,18 @@ public class QuickViewManager {
         return viewpoints;
     }
 
+    /** 按出现顺序收集所有非空分组名（主界面筛选下拉与编辑页分组候选共用）。 */
+    public List<String> getGroups() {
+        List<String> groups = new ArrayList<>();
+        for (Viewpoint vp : viewpoints) {
+            String group = vp.getGroup();
+            if (!group.isEmpty() && !groups.contains(group)) {
+                groups.add(group);
+            }
+        }
+        return groups;
+    }
+
     public String getCurrentDimension() {
         return currentDimension;
     }

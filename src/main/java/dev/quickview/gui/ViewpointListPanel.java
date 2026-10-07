@@ -41,8 +41,6 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
     /** 批量删除勾选态：浅红包裹 + 红边框（与排序落点预览同构，颜色换成危险红）。 */
     private static final int SELECT_FILL = 0x40FF5555;
     private static final int SELECT_BORDER = 0xFFFF5555;
-    /** 指针在面板外时给子控件传的「屏幕外」坐标，让 hover 判定为 false。 */
-    private static final int HOVER_OFF = -1_000_000;
 
     private final WTextField search;
     private final List<D> allData;
@@ -62,7 +60,7 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
 
     /** 批量删除的选择模式：开启时点条目 = 勾选/取消勾选，而非触发点击动作。 */
     private boolean selectMode;
-    /** 已勾选的数据（用身份集合，与拖拽一致，避免依赖 equals）。 */
+    /** 已勾选的数据（Viewpoint 未覆写 equals，HashSet 天然就是身份语义，与拖拽一致）。 */
     private final java.util.Set<D> selected = new java.util.HashSet<>();
     /** 勾选集合变化时回调（主界面据此更新「删除已选 (N)」按钮）。 */
     private Runnable onSelectionChanged;
@@ -330,11 +328,12 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
 
     @Override
     public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
-        // 指针在面板外时冻结鼠标坐标：滚动列表的末行会超出面板下缘，仍留在 children 里，
-        // 不冻结的话指针在面板下方（模式开关行那一带）也会让它亮起来 —— 点不到但会亮，像 bug。
+        // 指针在面板外时冻结鼠标坐标（HOVER_OFF_XY 同 ViewpointGUI，屏幕外值让 hover 判定为 false）：
+        // 滚动列表的末行会超出面板下缘，仍留在 children 里，不冻结的话指针在面板下方
+        // （模式开关行那一带）也会让它亮起来 —— 点不到但会亮，像 bug。
         boolean inside = mouseX >= 0 && mouseY >= 0 && mouseX < this.width && mouseY < this.height;
-        int px = inside ? mouseX : HOVER_OFF;
-        int py = inside ? mouseY : HOVER_OFF;
+        int px = inside ? mouseX : ViewpointGUI.HOVER_OFF_XY;
+        int py = inside ? mouseY : ViewpointGUI.HOVER_OFF_XY;
 
         // 裁剪到面板范围：条目、勾选框、落点预览、拖拽幽灵都可能超出面板（LibGui 不裁剪），
         // 不裁剪就会盖到下面的模式开关行上
