@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class ViewpointStorage {
     /** 文件格式版本号。字段/语义变更时递增，load 侧可据此做迁移。 */
@@ -21,6 +22,10 @@ public class ViewpointStorage {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path BASE_DIR = FabricLoader.getInstance().getGameDir().resolve("quickview");
+    private static final Type LIST_TYPE = new TypeToken<List<Viewpoint>>() {}.getType();
+    /** Windows 非法字符与控制符 → 下划线；尾部空格/点（Windows 会吞掉）也会被处理。 */
+    private static final Pattern ILLEGAL_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\p{Cntrl}]");
+    private static final Pattern TRAILING_DOTS_SPACES = Pattern.compile("[. ]+$");
 
     /** 磁盘上的文件结构：{ "version": 1, "viewpoints": [ ... ] }。 */
     private static final class StorageFile {
@@ -58,7 +63,7 @@ public class ViewpointStorage {
                 return new ArrayList<>();
             }
 
-            Type listType = new TypeToken<List<Viewpoint>>() {}.getType();
+            Type listType = LIST_TYPE;
             List<Viewpoint> result = GSON.fromJson(array, listType);
             return result != null ? new ArrayList<>(result) : new ArrayList<>();
         } catch (Exception e) {
@@ -79,8 +84,8 @@ public class ViewpointStorage {
         if (name == null) {
             return "unknown";
         }
-        String safe = name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
-        safe = safe.replaceAll("[. ]+$", "");
+        String safe = ILLEGAL_CHARS.matcher(name).replaceAll("_").trim();
+        safe = TRAILING_DOTS_SPACES.matcher(safe).replaceAll("");
         if (safe.isEmpty() || safe.equals(".") || safe.equals("..")) {
             safe = "unknown";
         }

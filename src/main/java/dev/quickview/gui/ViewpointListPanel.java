@@ -402,16 +402,7 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
             return text;
         }
         String ellipsis = "…";
-        int limit = maxWidth - textRenderer.getWidth(ellipsis);
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (textRenderer.getWidth(builder.toString() + c) > limit) {
-                break;
-            }
-            builder.append(c);
-        }
-        return builder + ellipsis;
+        return textRenderer.trimToWidth(text, Math.max(0, maxWidth - textRenderer.getWidth(ellipsis))) + ellipsis;
     }
 
     // -------------------------------------------------------------------- 布局

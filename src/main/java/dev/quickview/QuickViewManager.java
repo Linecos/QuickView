@@ -265,13 +265,7 @@ public class QuickViewManager {
     }
 
     public void addViewpoint(String name) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null) return;
-
-        Viewpoint vp = captureViewSnapshot(name);
-        if (vp == null) return;
-        viewpoints.add(vp);
-        saveViewpoints();
+        createViewpoint(name);
     }
 
     public Viewpoint createViewpoint(String name) {

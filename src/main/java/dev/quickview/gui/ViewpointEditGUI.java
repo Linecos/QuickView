@@ -90,19 +90,17 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.viewpoint = viewpoint;
         this.nameField.setText(viewpoint.getName());
         this.nameField.setFocusLostCallback(s -> {
-            // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名
+            // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名。
+            // 只改模型不落盘：所有字段统一在关闭（saveData）时写一次盘。
             if (s.isEmpty()) {
                 nameField.setText(viewpoint.getName());
             } else {
-                manager.renameViewpoint(viewpoint, s);
+                viewpoint.setName(s);
             }
             syncNameLength();
         });
         this.groupField.setText(viewpoint.getGroup());
-        this.groupField.setFocusLostCallback(s -> {
-            viewpoint.setGroup(s);
-            manager.saveViewpoints();
-        });
+        this.groupField.setFocusLostCallback(viewpoint::setGroup);
         this.xField = coordField(String.format("%.1f", viewpoint.getX()));
         this.yField = coordField(String.format("%.1f", viewpoint.getY()));
         this.zField = coordField(String.format("%.1f", viewpoint.getZ()));
@@ -194,7 +192,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         if (!name.isEmpty()) {
             groupField.setText(name);
             viewpoint.setGroup(name);
-            manager.saveViewpoints();
         }
         closeGroupList();
     }
@@ -222,7 +219,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             }
             groupField.setText(value);
             viewpoint.setGroup(value);
-            manager.saveViewpoints();
             closeGroupList();
         });
     }
@@ -249,6 +245,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         field.setTextPredicate(NUMBER_PREDICATE);
         field.setText(initial);
         field.setFocusLostCallback(s -> {
+            // 只写回模型，落盘统一在关闭（saveData）时做：5 个框逐个失焦各写一次盘太浪费
             applyCoordinates();
             // 回填：输入为空或只有 "-" / "." 这类半截内容时 parse 会失败，若不回填，
             // 输入框显示的内容会和模型里的真实值不一致。
@@ -270,13 +267,13 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         pitchField.setText(String.format("%.1f", viewpoint.getPitch()));
     }
 
+    /** 把输入框内容写回模型（不落盘；解析失败的字段保持原值）。 */
     private void applyCoordinates() {
         try { viewpoint.setX(Double.parseDouble(xField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setY(Double.parseDouble(yField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setZ(Double.parseDouble(zField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setYaw(Float.parseFloat(yawField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setPitch(Float.parseFloat(pitchField.getText())); } catch (NumberFormatException ignored) {}
-        manager.saveViewpoints();
     }
 
     private void setToCurrent() {
@@ -293,7 +290,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         viewpoint.setPitch(snapshot.getPitch());
 
         refreshFields();
-        manager.saveViewpoints();
     }
 
     private void setupRoot() {
@@ -322,13 +318,15 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.root.validate(this);
     }
 
+    /** 关闭编辑页时调用：把全部字段写回模型并统一落盘一次。 */
     public void saveData() {
         // 名字为空时不覆盖旧名：用户可能只是随手清了输入框，不该把书签变成无名
         String name = nameField.getText();
         if (!name.isEmpty()) {
-            manager.renameViewpoint(viewpoint, name);
+            viewpoint.setName(name);
         }
         applyCoordinates();
+        manager.saveViewpoints();
     }
 
     @Override
