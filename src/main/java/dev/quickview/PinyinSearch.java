@@ -82,7 +82,7 @@ public final class PinyinSearch {
     /** 生成一个书签名的全部匹配键，全部小写并已去重。结果有缓存，可高频重复调用。 */
     public static List<String> keysOf(String name) {
         if (name == null || name.isEmpty()) {
-            return new ArrayList<>(KEY_CAPACITY);
+            return List.of();
         }
         List<String> cached = KEYS_CACHE.get(name);
         if (cached != null) {

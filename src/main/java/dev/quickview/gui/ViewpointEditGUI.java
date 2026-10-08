@@ -89,17 +89,19 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.viewpoint = viewpoint;
         this.nameField.setText(viewpoint.getName());
         this.nameField.setFocusLostCallback(s -> {
-            // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名。
-            // 只改模型不落盘：所有字段统一在关闭（saveData）时写一次盘。
+            // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名
+            mutateAndMaybeSave(() -> {
+                if (!s.isEmpty()) {
+                    viewpoint.setName(s);
+                }
+            });
             if (s.isEmpty()) {
                 nameField.setText(viewpoint.getName());
-            } else {
-                viewpoint.setName(s);
             }
             syncNameLength();
         });
         this.groupField.setText(viewpoint.getGroup());
-        this.groupField.setFocusLostCallback(viewpoint::setGroup);
+        this.groupField.setFocusLostCallback(s -> mutateAndMaybeSave(() -> viewpoint.setGroup(s)));
         this.xField = coordField(String.format("%.1f", viewpoint.getX()));
         this.yField = coordField(String.format("%.1f", viewpoint.getY()));
         this.zField = coordField(String.format("%.1f", viewpoint.getZ()));
@@ -232,8 +234,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         field.setTextPredicate(NUMBER_PREDICATE);
         field.setText(initial);
         field.setFocusLostCallback(s -> {
-            // 只写回模型，落盘统一在关闭（saveData）时做：5 个框逐个失焦各写一次盘太浪费
-            applyCoordinates();
+            mutateAndMaybeSave(this::applyCoordinates);
             // 回填：输入为空或只有 "-" / "." 这类半截内容时 parse 会失败，若不回填，
             // 输入框显示的内容会和模型里的真实值不一致。
             refreshFields();
@@ -254,13 +255,38 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         pitchField.setText(String.format("%.1f", viewpoint.getPitch()));
     }
 
-    /** 把输入框内容写回模型（不落盘；解析失败的字段保持原值）。 */
+    /**
+     * 把输入框内容写回模型（不落盘；解析失败的字段保持原值）。
+     * <p>落盘由 {@link #mutateAndMaybeSave} 在调用处负责判断。
+     */
     private void applyCoordinates() {
         try { viewpoint.setX(Double.parseDouble(xField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setY(Double.parseDouble(yField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setZ(Double.parseDouble(zField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setYaw(Float.parseFloat(yawField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setPitch(Float.parseFloat(pitchField.getText())); } catch (NumberFormatException ignored) {}
+    }
+
+    /** 模型当前值的快照，用于判断一次修改是否真的改了东西。 */
+    private String snapshot() {
+        return viewpoint.getName() + '\u0000' + viewpoint.getGroup()
+                + '\u0000' + viewpoint.getX() + '\u0000' + viewpoint.getY() + '\u0000' + viewpoint.getZ()
+                + '\u0000' + viewpoint.getYaw() + '\u0000' + viewpoint.getPitch();
+    }
+
+    /**
+     * 执行一次修改，<b>只有真的改了值才落盘</b>。
+     *
+     * <p>为什么不一律在关闭时统一落盘：那样崩溃 / 强杀（不走 {@code Screen#removed()}）会丢掉编辑内容。
+     * 为什么不每次失焦都无条件落盘：5 个坐标框逐个失焦会白写 5 次盘。
+     * 折中成「变了才写」——既没有丢改动的窗口，也没有无意义的写盘。
+     */
+    private void mutateAndMaybeSave(Runnable mutation) {
+        String before = snapshot();
+        mutation.run();
+        if (!snapshot().equals(before)) {
+            manager.saveViewpoints();
+        }
     }
 
     private void setToCurrent() {
@@ -270,11 +296,13 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         Viewpoint snapshot = manager.captureViewSnapshot("");
         if (snapshot == null) return;
 
-        viewpoint.setX(snapshot.getX());
-        viewpoint.setY(snapshot.getY());
-        viewpoint.setZ(snapshot.getZ());
-        viewpoint.setYaw(snapshot.getYaw());
-        viewpoint.setPitch(snapshot.getPitch());
+        mutateAndMaybeSave(() -> {
+            viewpoint.setX(snapshot.getX());
+            viewpoint.setY(snapshot.getY());
+            viewpoint.setZ(snapshot.getZ());
+            viewpoint.setYaw(snapshot.getYaw());
+            viewpoint.setPitch(snapshot.getPitch());
+        });
 
         refreshFields();
     }

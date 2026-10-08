@@ -314,7 +314,15 @@ public class QuickViewManager {
         return client.player;
     }
 
-    /** 按下标移除（仅限已知下标稳定时使用；GUI 层请用 {@link #removeViewpoint(Viewpoint)}）。 */
+    /**
+     * 按下标移除并落盘。
+     *
+     * <p>用途很窄但必要：<b>需要跨「列表重载」删除时只能用下标</b>。GUI 关闭编辑页会触发
+     * {@code refreshList()} → {@link #loadViewpoints()} 把 {@code viewpoints} 整表换成新对象，
+     * 此时旧的 {@code Viewpoint} 引用已不在列表里，按身份移除会静默失败；
+     * 而重载只换对象、不改变顺序，所以重载前求出的下标仍然指向同一书签。
+     * <p>同一时刻没有重载的场合（勾选批量删除）请用 {@link #removeViewpoints(List)}。
+     */
     public void removeViewpoint(int index) {
         if (index >= 0 && index < viewpoints.size()) {
             viewpoints.remove(index);
@@ -322,14 +330,7 @@ public class QuickViewManager {
         }
     }
 
-    /** 按对象身份移除单个书签并落盘（Viewpoint 未覆写 equals，remove 即身份比较）。 */
-    public void removeViewpoint(Viewpoint vp) {
-        if (viewpoints.remove(vp)) {
-            saveViewpoints();
-        }
-    }
-
-    /** 批量删除：一次落盘（逐个 removeViewpoint 会重复 save）。按对象身份移除，与拖拽/勾选一致。 */
+    /** 批量删除：一次落盘（逐个按身份移除会重复 save）。按对象身份匹配，与拖拽/勾选一致。 */
     public void removeViewpoints(List<Viewpoint> toRemove) {
         if (toRemove == null || toRemove.isEmpty()) {
             return;
@@ -340,20 +341,6 @@ public class QuickViewManager {
         if (changed) {
             saveViewpoints();
         }
-    }
-
-    /** 按下标改名（仅限已知下标稳定时使用；GUI 层请用 {@link #renameViewpoint(Viewpoint, String)}）。 */
-    public void renameViewpoint(int index, String newName) {
-        if (index >= 0 && index < viewpoints.size()) {
-            viewpoints.get(index).setName(newName);
-            saveViewpoints();
-        }
-    }
-
-    /** 改名并落盘。持有 Viewpoint 引用时优先用这个，不依赖下标在列表变化后仍然有效。 */
-    public void renameViewpoint(Viewpoint vp, String newName) {
-        vp.setName(newName);
-        saveViewpoints();
     }
 
     public void switchToViewpoint(Viewpoint vp) {

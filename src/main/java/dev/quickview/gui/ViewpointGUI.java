@@ -278,23 +278,34 @@ public class ViewpointGUI extends LightweightGuiDescription {
         });
         screen.setParent(main);
         editGui.setOnDeleteRequested(() -> {
-            editGui.saveData();
+            // ⚠️ 下标必须在关闭编辑页之前算出来：关闭会触发 closeCallback → refreshList()
+            // → loadViewpoints() 把 viewpoints 整表换成新对象，之后旧引用就成孤儿了
+            // （按身份删除会静默失败 —— 曾经的 bug）。关闭只是换对象、不改变顺序，
+            // 所以这里算出的下标在重载后仍指向同一书签。
+            int idx = manager.getViewpoints().indexOf(vp);
+            // 只切屏：把改动落盘 + 刷新列表交给 closeCallback 统一做，避免重复写盘
             MinecraftClient.getInstance().setScreen(main);
-            openDeleteConfirm(vp, main);
+            openDeleteConfirm(main, vp, idx);
         });
         MinecraftClient.getInstance().setScreen(screen);
     }
 
-    /** 删除前先弹一次确认，避免「删除」开关打开时误点条目直接永久删除。 */
-    private void openDeleteConfirm(Viewpoint vp, Screen parent) {
+    /**
+     * 删除前先弹一次确认，避免「删除」开关打开时误点条目直接永久删除。
+     *
+     * @param parent  确认框的返回目标
+     * @param display 仅用于显示书签名（可能已是旧对象，不要拿它做删除）
+     * @param index   书签下标；调用方必须保证它是在列表重载<b>之前</b>求出的（见 openEditScreen）
+     */
+    private void openDeleteConfirm(Screen parent, Viewpoint display, int index) {
         // 空名书签显示「未命名」，避免出现「确定删除「」吗？」
-        Text nameArg = vp.getName().isEmpty()
+        Text nameArg = display.getName().isEmpty()
                 ? Text.translatable("quickview.gui.edit.unnamed")
-                : Text.literal(shorten(vp.getName()));
+                : Text.literal(shorten(display.getName()));
         ConfirmGUI confirm = new ConfirmGUI(
                 Text.translatable("quickview.gui.confirm.delete", nameArg),
                 parent,
-                () -> manager.removeViewpoint(vp));
+                () -> manager.removeViewpoint(index));
         confirm.setConfirmLabel(Text.translatable("quickview.gui.main.delete"));
         WrapperViewpointScreen screen = new WrapperViewpointScreen(confirm);
         screen.setParent(parent);

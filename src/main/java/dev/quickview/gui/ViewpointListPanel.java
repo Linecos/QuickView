@@ -60,8 +60,12 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
 
     /** 批量删除的选择模式：开启时点条目 = 勾选/取消勾选，而非触发点击动作。 */
     private boolean selectMode;
-    /** 已勾选的数据（Viewpoint 未覆写 equals，HashSet 天然就是身份语义，与拖拽一致）。 */
-    private final java.util.Set<D> selected = new java.util.HashSet<>();
+    /**
+     * 已勾选的数据。用<b>身份</b>集合而不是 HashSet：勾选/拖拽/排序三处都依赖「同一批对象实例」的语义，
+     * 显式身份集合把这条约束写死在类型里 —— 将来给 Viewpoint 覆写 equals 也不会悄悄改变行为。
+     */
+    private final java.util.Set<D> selected =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     /** 勾选集合变化时回调（主界面据此更新「删除已选 (N)」按钮）。 */
     private Runnable onSelectionChanged;
 
