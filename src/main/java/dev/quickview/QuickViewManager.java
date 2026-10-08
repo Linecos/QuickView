@@ -66,6 +66,13 @@ public class QuickViewManager {
     private float targetYaw;
     private float targetPitch;
 
+    /**
+     * 上一 tick 的生命值 / 吸收量，用于识别「受到伤害」。
+     * {@code NaN} = 尚无基线（刚进世界或刚切世界），此时不判伤害，避免拿旧世界的血量误判。
+     */
+    private float lastHealth = Float.NaN;
+    private float lastAbsorption = Float.NaN;
+
     private QuickViewManager() {
     }
 
@@ -118,6 +125,15 @@ public class QuickViewManager {
         config.save();
     }
 
+    public boolean isRestoreOnDamage() {
+        return config.isRestoreOnDamage();
+    }
+
+    public void toggleRestoreOnDamage() {
+        config.setRestoreOnDamage(!config.isRestoreOnDamage());
+        config.save();
+    }
+
     public double getFreeX() {
         return freeX;
     }
@@ -156,6 +172,41 @@ public class QuickViewManager {
         prevX = freeX;
         prevY = freeY;
         prevZ = freeZ;
+    }
+
+    /**
+     * 每客户端 tick 调用（<b>不受 {@code viewActive} 限制</b>）：维护生命/吸收量基线，
+     * 一旦发现减少就认为「受到伤害」；若此时正在自由视角且开关打开，则立即 {@link #restore()}。
+     *
+     * <p>为什么不只在自由视角时记录：进入自由视角的那一刻没有基线，第一帧的伤害会被漏掉；
+     * 全时段记录才能保证「进入自由视角前刚受过伤」不会被当成新伤害（血量已在那之前记过低值）。
+     * <p>吸收量也要看：有吸收心时受击不掉血、只掉吸收量，只看 {@code getHealth()} 会漏判。
+     * <p>恢复时机是客户端 tick（伤害经由网络包同步到血量），不引入新 mixin。
+     *
+     * @return 本次是否因受伤触发了恢复（调用方据此决定要不要把界面也关掉 ——
+     *         菜单开着时移动输入被拦，玩家会「回到本体但动不了」）
+     */
+    public boolean tickDamageWatch() {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) {
+            lastHealth = Float.NaN;
+            lastAbsorption = Float.NaN;
+            return false;
+        }
+
+        float health = player.getHealth();
+        float absorption = player.getAbsorptionAmount();
+        boolean hasBaseline = !Float.isNaN(lastHealth);
+        boolean damaged = hasBaseline && (health < lastHealth || absorption < lastAbsorption);
+
+        lastHealth = health;
+        lastAbsorption = absorption;
+
+        if (damaged && viewActive && config.isRestoreOnDamage()) {
+            restore();
+            return true;
+        }
+        return false;
     }
 
     public void applyFreecamLook(double cursorDeltaX, double cursorDeltaY) {
@@ -534,5 +585,9 @@ public class QuickViewManager {
         freeZ = 0.0;
         freeYaw = 0.0f;
         freePitch = 0.0f;
+
+        // 换了世界就要丢掉血量基线：新世界满血 / 旧世界残血会被误判成「受到伤害」
+        lastHealth = Float.NaN;
+        lastAbsorption = Float.NaN;
     }
 }

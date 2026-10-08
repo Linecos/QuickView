@@ -31,6 +31,8 @@ public final class QuickViewConfig {
     private boolean preferFreecam = true;
     private boolean smoothTransitionEnabled = false;
     private int smoothTransitionMillis = DEFAULT_TRANSITION_MILLIS;
+    /** 自由视角下受到伤害时是否立即恢复本体视角。 */
+    private boolean restoreOnDamage = true;
 
     public static QuickViewConfig load() {
         if (!Files.exists(FILE)) {
@@ -95,5 +97,13 @@ public final class QuickViewConfig {
 
     public int getSmoothTransitionMillis() {
         return smoothTransitionMillis;
+    }
+
+    public boolean isRestoreOnDamage() {
+        return restoreOnDamage;
+    }
+
+    public void setRestoreOnDamage(boolean restoreOnDamage) {
+        this.restoreOnDamage = restoreOnDamage;
     }
 }

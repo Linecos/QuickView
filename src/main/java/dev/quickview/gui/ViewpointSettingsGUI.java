@@ -48,11 +48,12 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 });
         tabGeneral.setEnabled(false);
 
-        // 内容卡 35 格（175px）：功能行最低到 172px；root 220 让底部留白 10px（上轮 210 只剩 ~5px）
-        root.setSize(350, 220);
+        // 内容卡 41 格（205px）：5 个功能行从 y=4 起、行距 40、最低到 200px；root 250 让底部留白 10px。
+        // 行距从 44 收到 40 是为了在第 5 行之后仍不超过 250px（GUI Scale 5 下更高的面板会顶出屏幕）
+        root.setSize(350, 250);
         root.add(tabGeneral, 1, 1, 14, 4);
         root.add(tabKeybinds, 17, 1, 14, 4);
-        root.add(content, 1, 7, 68, 35);
+        root.add(content, 1, 7, 68, 41);
 
         root.validate(this);
         setRootPanel(root);
@@ -66,11 +67,13 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 QuickViewKeybindings.getSaveKey()), 5, 4, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.free_move",
                 manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove(),
-                QuickViewKeybindings.getToggleMoveKey()), 5, 48, 330, 36);
+                QuickViewKeybindings.getToggleMoveKey()), 5, 44, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.freecam",
-                manager.isPreferFreecam(), on -> manager.togglePreferFreecam(), null), 5, 92, 330, 36);
+                manager.isPreferFreecam(), on -> manager.togglePreferFreecam(), null), 5, 84, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.smooth_transition",
-                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition(), null), 5, 136, 330, 36);
+                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition(), null), 5, 124, 330, 36);
+        panel.add(createFeatureRow("quickview.gui.settings.option.restore_on_damage",
+                manager.isRestoreOnDamage(), on -> manager.toggleRestoreOnDamage(), null), 5, 164, 330, 36);
 
         return panel;
     }

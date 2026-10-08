@@ -27,6 +27,8 @@
   "quickview.gui.settings.option.freecam.desc": "Prefer the camera entity over the player",
   "quickview.gui.settings.option.smooth_transition": "Smooth Transition",
   "quickview.gui.settings.option.smooth_transition.desc": "Glide to the viewpoint instead of jumping",
+  "quickview.gui.settings.option.restore_on_damage": "Restore on Damage",
+  "quickview.gui.settings.option.restore_on_damage.desc": "Snap back to your body the moment you take damage in free view",
   "quickview.gui.settings.key.prompt": "> Press a Key <",
   "quickview.gui.settings.key.reset": "Reset",
   "quickview.gui.edit.name": "Name",

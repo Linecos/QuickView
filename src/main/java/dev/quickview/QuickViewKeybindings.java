@@ -6,7 +6,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
@@ -87,18 +86,24 @@ public class QuickViewKeybindings {
 
             QuickViewManager manager = QuickViewManager.getInstance();
 
+            // 先做受伤监测（命中且开关打开时它会直接恢复本体视角），再处理按键，
+            // 免得同 tick 的按键逻辑基于已经失效的自由视角状态做判断
+            if (manager.tickDamageWatch()) {
+                // 受伤恢复时把 QuickView 界面一并关掉：界面开着时移动输入被拦截，
+                // 否则玩家会陷入「已经回到本体、却动不了」的状态。确认弹窗也一并关（等于取消，不会误执行）
+                closeQuickViewScreens();
+            }
+
             if (openMenuKey.wasPressed()) {
-                // 再按一次 V 关闭：任何 QuickView 界面（主菜单/编辑页/设置页/确认弹窗
-                // 都是 WrapperViewpointScreen）都直接关闭，而不是再叠一层新菜单
-                Screen current = MinecraftClient.getInstance().currentScreen;
-                if (current instanceof WrapperViewpointScreen) {
-                    MinecraftClient.getInstance().setScreen(null);
+                // 再按一次 V 关闭：任何 QuickView 界面（主菜单/编辑页/设置页/确认弹窗）
+                // 都直接关闭，而不是再叠一层新菜单
+                if (closeQuickViewScreens()) {
                     return;
                 }
                 // ViewpointGUI 构造函数里已经 loadViewpoints()，这里不重复读盘
                 ViewpointGUI gui = new ViewpointGUI();
                 WrapperViewpointScreen screen = new WrapperViewpointScreen(gui);
-                screen.setParent(current);
+                screen.setParent(MinecraftClient.getInstance().currentScreen);
                 MinecraftClient.getInstance().setScreen(screen);
             }
 
@@ -130,5 +135,18 @@ public class QuickViewKeybindings {
                 client.player.sendMessage(Text.translatable(key), true);
             }
         });
+    }
+
+    /**
+     * 关闭当前打开的 QuickView 界面（主菜单 / 编辑页 / 设置页 / 确认弹窗都是 {@link WrapperViewpointScreen}）。
+     *
+     * @return 是否真的关掉了一个；false 表示当前没有 QuickView 界面打开
+     */
+    private static boolean closeQuickViewScreens() {
+        if (MinecraftClient.getInstance().currentScreen instanceof WrapperViewpointScreen) {
+            MinecraftClient.getInstance().setScreen(null);
+            return true;
+        }
+        return false;
     }
 }

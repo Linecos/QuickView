@@ -27,6 +27,8 @@
   "quickview.gui.settings.option.freecam.desc": "与其他自由视角模组共存时，优先用相机实体取景",
   "quickview.gui.settings.option.smooth_transition": "切换视角平滑过渡",
   "quickview.gui.settings.option.smooth_transition.desc": "切换书签时相机平滑飞过去，而不是瞬间跳转",
+  "quickview.gui.settings.option.restore_on_damage": "受伤立即恢复视角",
+  "quickview.gui.settings.option.restore_on_damage.desc": "自由视角下受到伤害时立刻回到本体视角，方便马上反应",
   "quickview.gui.settings.key.prompt": "> 请按一个键 <",
   "quickview.gui.settings.key.reset": "重置",
   "quickview.gui.edit.name": "名称",
