@@ -35,6 +35,10 @@ public class WViewpointEntry extends WButton {
     private int normalColor;
     /** 勾选态的文字色（与边框同系的红，表示「将被删除」）。 */
     private static final int SELECTED_COLOR = 0xFFE06060;
+    /** 勾选态的文字色（绿色，表示「将移入分组」）。 */
+    private static final int GROUP_SELECTED_COLOR = 0xFF8FD9A0;
+    /** 当前勾选样式的文字色：红色=将删除、绿色=将归组（由 {@link #setDangerStyle} 切换）。 */
+    private int selectedColor = SELECTED_COLOR;
 
     /** 由列表面板实现，负责把条目在列表里的移动落到实处。 */
     public interface DragHost {
@@ -62,10 +66,18 @@ public class WViewpointEntry extends WButton {
         this.color = dragSource ? DRAG_SOURCE_COLOR : normalColor;
     }
 
-    /** 批量删除勾选态：文字变红（红色边框/浅红包裹由列表面板画）。 */
+    /** 勾选态：文字变色（边框/包裹由列表面板按当前样式画）。 */
     public void setSelected(boolean selected) {
         this.selected = selected;
-        this.color = selected ? SELECTED_COLOR : normalColor;
+        this.color = selected ? selectedColor : normalColor;
+    }
+
+    /** 勾选样式：danger=true 红（批量删除）、false 绿（批量归组）。切换模式时由列表面板调。 */
+    public void setDangerStyle(boolean danger) {
+        this.selectedColor = danger ? SELECTED_COLOR : GROUP_SELECTED_COLOR;
+        if (selected) {
+            this.color = selectedColor;
+        }
     }
 
     @Override

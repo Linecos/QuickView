@@ -66,6 +66,13 @@ public class QuickViewManager {
     private float targetYaw;
     private float targetPitch;
 
+    /**
+     * 上一 tick 的生命值 / 吸收量，用于识别「受到伤害」。
+     * {@code NaN} = 尚无基线（刚进世界或刚切世界），此时不判伤害，避免拿旧世界的血量误判。
+     */
+    private float lastHealth = Float.NaN;
+    private float lastAbsorption = Float.NaN;
+
     private QuickViewManager() {
     }
 
@@ -118,6 +125,15 @@ public class QuickViewManager {
         config.save();
     }
 
+    public boolean isRestoreOnDamage() {
+        return config.isRestoreOnDamage();
+    }
+
+    public void toggleRestoreOnDamage() {
+        config.setRestoreOnDamage(!config.isRestoreOnDamage());
+        config.save();
+    }
+
     public double getFreeX() {
         return freeX;
     }
@@ -156,6 +172,41 @@ public class QuickViewManager {
         prevX = freeX;
         prevY = freeY;
         prevZ = freeZ;
+    }
+
+    /**
+     * 每客户端 tick 调用（<b>不受 {@code viewActive} 限制</b>）：维护生命/吸收量基线，
+     * 一旦发现减少就认为「受到伤害」；若此时正在自由视角且开关打开，则立即 {@link #restore()}。
+     *
+     * <p>为什么不只在自由视角时记录：进入自由视角的那一刻没有基线，第一帧的伤害会被漏掉；
+     * 全时段记录才能保证「进入自由视角前刚受过伤」不会被当成新伤害（血量已在那之前记过低值）。
+     * <p>吸收量也要看：有吸收心时受击不掉血、只掉吸收量，只看 {@code getHealth()} 会漏判。
+     * <p>恢复时机是客户端 tick（伤害经由网络包同步到血量），不引入新 mixin。
+     *
+     * @return 本次是否因受伤触发了恢复（调用方据此决定要不要把界面也关掉 ——
+     *         菜单开着时移动输入被拦，玩家会「回到本体但动不了」）
+     */
+    public boolean tickDamageWatch() {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) {
+            lastHealth = Float.NaN;
+            lastAbsorption = Float.NaN;
+            return false;
+        }
+
+        float health = player.getHealth();
+        float absorption = player.getAbsorptionAmount();
+        boolean hasBaseline = !Float.isNaN(lastHealth);
+        boolean damaged = hasBaseline && (health < lastHealth || absorption < lastAbsorption);
+
+        lastHealth = health;
+        lastAbsorption = absorption;
+
+        if (damaged && viewActive && config.isRestoreOnDamage()) {
+            restore();
+            return true;
+        }
+        return false;
     }
 
     public void applyFreecamLook(double cursorDeltaX, double cursorDeltaY) {
@@ -225,6 +276,18 @@ public class QuickViewManager {
         return viewpoints;
     }
 
+    /** 按出现顺序收集所有非空分组名（主界面筛选下拉与编辑页分组候选共用）。 */
+    public List<String> getGroups() {
+        List<String> groups = new ArrayList<>();
+        for (Viewpoint vp : viewpoints) {
+            String group = vp.getGroup();
+            if (!group.isEmpty() && !groups.contains(group)) {
+                groups.add(group);
+            }
+        }
+        return groups;
+    }
+
     public String getCurrentDimension() {
         return currentDimension;
     }
@@ -265,13 +328,7 @@ public class QuickViewManager {
     }
 
     public void addViewpoint(String name) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null) return;
-
-        Viewpoint vp = captureViewSnapshot(name);
-        if (vp == null) return;
-        viewpoints.add(vp);
-        saveViewpoints();
+        createViewpoint(name);
     }
 
     public Viewpoint createViewpoint(String name) {
@@ -308,6 +365,15 @@ public class QuickViewManager {
         return client.player;
     }
 
+    /**
+     * 按下标移除并落盘。
+     *
+     * <p>用途很窄但必要：<b>需要跨「列表重载」删除时只能用下标</b>。GUI 关闭编辑页会触发
+     * {@code refreshList()} → {@link #loadViewpoints()} 把 {@code viewpoints} 整表换成新对象，
+     * 此时旧的 {@code Viewpoint} 引用已不在列表里，按身份移除会静默失败；
+     * 而重载只换对象、不改变顺序，所以重载前求出的下标仍然指向同一书签。
+     * <p>同一时刻没有重载的场合（勾选批量删除）请用 {@link #removeViewpoints(List)}。
+     */
     public void removeViewpoint(int index) {
         if (index >= 0 && index < viewpoints.size()) {
             viewpoints.remove(index);
@@ -315,7 +381,7 @@ public class QuickViewManager {
         }
     }
 
-    /** 批量删除：一次落盘（逐个 removeViewpoint 会重复 save）。按对象身份移除，与拖拽/勾选一致。 */
+    /** 批量删除：一次落盘（逐个按身份移除会重复 save）。按对象身份匹配，与拖拽/勾选一致。 */
     public void removeViewpoints(List<Viewpoint> toRemove) {
         if (toRemove == null || toRemove.isEmpty()) {
             return;
@@ -328,11 +394,26 @@ public class QuickViewManager {
         }
     }
 
-    public void renameViewpoint(int index, String newName) {
-        if (index >= 0 && index < viewpoints.size()) {
-            viewpoints.get(index).setName(newName);
-            saveViewpoints();
-        }
+    /**
+     * 克隆书签：复制全部字段（含分组），插入到原书签之后并落盘，返回克隆书签的下标；失败返回 -1。
+     * <p>克隆名由调用方生成（语言文件里的「%s 副本」）；{@code indexOf} 是身份语义
+     * （{@code Viewpoint} 未覆写 equals），传入的对象必须还在当前列表里，
+     * 否则静默失败（与按身份删除同一陷阱）。
+     * <p>返回下标而不是对象引用，是因为 GUI 关闭编辑页会触发
+     * {@code refreshList()} → {@link #loadViewpoints()} 整表换新对象；重载只换对象、
+     * 不改顺序，所以这个下标在重载后仍指向克隆出来的书签。
+     */
+    public int cloneViewpointAfter(Viewpoint original, String cloneName) {
+        if (original == null) return -1;
+        int idx = viewpoints.indexOf(original);
+        if (idx < 0) return -1;
+        Viewpoint copy = new Viewpoint(cloneName, original.getDimension(),
+                original.getX(), original.getY(), original.getZ(),
+                original.getYaw(), original.getPitch());
+        copy.setGroup(original.getGroup());
+        viewpoints.add(idx + 1, copy);
+        saveViewpoints();
+        return idx + 1;
     }
 
     public void switchToViewpoint(Viewpoint vp) {
@@ -526,5 +607,9 @@ public class QuickViewManager {
         freeZ = 0.0;
         freeYaw = 0.0f;
         freePitch = 0.0f;
+
+        // 换了世界就要丢掉血量基线：新世界满血 / 旧世界残血会被误判成「受到伤害」
+        lastHealth = Float.NaN;
+        lastAbsorption = Float.NaN;
     }
 }

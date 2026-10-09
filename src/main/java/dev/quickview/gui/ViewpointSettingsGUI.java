@@ -14,6 +14,7 @@ import io.github.cottonmc.cotton.gui.widget.data.VerticalAlignment;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.text.Text;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -24,6 +25,13 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
     private final QuickViewManager manager = QuickViewManager.getInstance();
     private WButton tabGeneral;
     private WButton tabKeybinds;
+    /**
+     * 功能说明里涉及快捷键的标签刷新器（改键后要立即重设文字）。
+     * ⚠️ {@code Text.translatable(key.desc, getBoundKeyLocalizedText())} 的按键参数在<b>创建标签时</b>
+     * 按当时的 boundKey 求值并捕获；改键只换 {@code KeyBinding.boundKey}，已捕获的旧 Text 不会跟着变 ——
+     * 所以必须保留刷新器，改键后用新绑定重建说明文字，否则显示旧键名直到重进设置页。
+     */
+    private final List<Runnable> keyDescRefreshers = new ArrayList<>();
 
     public ViewpointSettingsGUI() {
         WGridPanel featurePanel = createFeaturePanel();
@@ -48,11 +56,12 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 });
         tabGeneral.setEnabled(false);
 
-        // 内容卡 35 格（175px）：功能行最低到 172px；root 220 让底部留白 10px（上轮 210 只剩 ~5px）
-        root.setSize(350, 220);
+        // 内容卡 41 格（205px）：5 个功能行从 y=4 起、行距 40、最低到 200px；root 250 让底部留白 10px。
+        // 行距从 44 收到 40 是为了在第 5 行之后仍不超过 250px（GUI Scale 5 下更高的面板会顶出屏幕）
+        root.setSize(350, 250);
         root.add(tabGeneral, 1, 1, 14, 4);
         root.add(tabKeybinds, 17, 1, 14, 4);
-        root.add(content, 1, 7, 68, 35);
+        root.add(content, 1, 7, 68, 41);
 
         root.validate(this);
         setRootPanel(root);
@@ -66,11 +75,13 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 QuickViewKeybindings.getSaveKey()), 5, 4, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.free_move",
                 manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove(),
-                QuickViewKeybindings.getToggleMoveKey()), 5, 48, 330, 36);
+                QuickViewKeybindings.getToggleMoveKey()), 5, 44, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.freecam",
-                manager.isPreferFreecam(), on -> manager.togglePreferFreecam(), null), 5, 92, 330, 36);
+                manager.isPreferFreecam(), on -> manager.togglePreferFreecam(), null), 5, 84, 330, 36);
         panel.add(createFeatureRow("quickview.gui.settings.option.smooth_transition",
-                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition(), null), 5, 136, 330, 36);
+                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition(), null), 5, 124, 330, 36);
+        panel.add(createFeatureRow("quickview.gui.settings.option.restore_on_damage",
+                manager.isRestoreOnDamage(), on -> manager.toggleRestoreOnDamage(), null), 5, 164, 330, 36);
 
         return panel;
     }
@@ -91,6 +102,11 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         WLabel descLabel = new WLabel(desc, 0xFFAAAAAA)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
         row.add(descLabel, 15, 19, 270, 14);
+        if (descKeyBinding != null) {
+            // 按键参数创建时捕获（见 keyDescRefreshers 注释）：登记刷新器，改键后用新绑定重建文字
+            keyDescRefreshers.add(() -> descLabel.setText(
+                    Text.translatable(key + ".desc", descKeyBinding.getBoundKeyLocalizedText())));
+        }
 
         WToggleButton toggle = new WToggleButton()
                 .setColor(0xFFFFFFFF, 0xFFFFFFFF)
@@ -132,9 +148,20 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         resetBtn.setEnabled(!keyBtn.isAtDefault());
         row.add(resetBtn, 292, 2, 28, 20);
 
-        keyBtn.setOnChange(() -> resetBtn.setEnabled(!keyBtn.isAtDefault()));
+        keyBtn.setOnChange(() -> {
+            resetBtn.setEnabled(!keyBtn.isAtDefault());
+            // 功能 tab 说明里的快捷键也跟着立即刷新（改键 / 重置 / ESC 解绑都会走 onChange）
+            refreshKeyDescriptions();
+        });
 
         return row;
+    }
+
+    /** 快捷键 tab 改键后立即刷新功能 tab 里涉及快捷键的说明文字（不用重进设置页）。 */
+    private void refreshKeyDescriptions() {
+        for (Runnable refresher : keyDescRefreshers) {
+            refresher.run();
+        }
     }
 
     @Override

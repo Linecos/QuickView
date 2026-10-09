@@ -11,7 +11,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -20,11 +19,19 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private static final int LEFT_LABEL_W = 3;
     private static final int RIGHT_LABEL_W = 7;
 
+    /**
+     * 面板尺寸（像素）。{@link #root} 与展开下拉时的挡板都用它 —— 曾因为挡板硬编码旧高度
+     * （root 从 115 改到 135 时漏改），导致新增的克隆按钮有 15px 露在挡板外：下拉展开时点那里
+     * 不会收起下拉、反而直接触发克隆。尺寸只在这里定义一份。
+     */
+    private static final int ROOT_W = 250;
+    private static final int ROOT_H = 135;
+
     /** 下拉列表的宽度（像素）：与「分组输入框 + 下拉按钮」总宽一致（x 130 → 245）。 */
     private static final int LIST_W = 115;
     private static final int LIST_ROW_H = 20;
     /** 编辑面板高度有限，最多同时显示几项，再多就直接在手输框里打。 */
-    private static final int LIST_MAX_ROWS = 4;
+    private static final int LIST_MAX_ROWS = 5;
     private static final int LIST_X = 26;   // 格
     private static final int LIST_Y = 5;    // 格
 
@@ -56,7 +63,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         }
     };
     private final Viewpoint viewpoint;
-    private final int viewpointIndex;
     private final WTextFieldExtra nameField = new WTextFieldExtra()
             .setSuggestion(Text.translatable("quickview.gui.edit.name"));
     private final WTextFieldExtra groupField = new WTextFieldExtra()
@@ -75,6 +81,9 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     /** 删除按钮：红色垃圾桶图标（无独立文案，配合主界面的二次确认使用）。 */
     private final WButton deleteBtn = new WButton(new TrashIcon())
             .setOnClick(this::requestDelete);
+    /** 克隆按钮：复制当前书签为新书签（克隆后直接切到编辑副本）。 */
+    private final WButton cloneBtn = new WButton(Text.translatable("quickview.gui.edit.clone"))
+            .setOnClick(this::requestClone);
     private final QuickViewManager manager = QuickViewManager.getInstance();
 
     /** 展开中的分组候选列表；null 表示收起。 */
@@ -86,25 +95,26 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
 
     /** 由主界面注入：点「删除该书签」时回调（主界面负责先关编辑页、再弹确认）。 */
     private Runnable onDeleteRequested;
+    /** 由主界面注入：点「复制为新书签」时回调（主界面负责克隆、关编辑页并切到编辑副本）。 */
+    private Runnable onCloneRequested;
 
-    public ViewpointEditGUI(Viewpoint viewpoint, int viewpointIndex) {
+    public ViewpointEditGUI(Viewpoint viewpoint) {
         this.viewpoint = viewpoint;
-        this.viewpointIndex = viewpointIndex;
         this.nameField.setText(viewpoint.getName());
         this.nameField.setFocusLostCallback(s -> {
             // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名
+            mutateAndMaybeSave(() -> {
+                if (!s.isEmpty()) {
+                    viewpoint.setName(s);
+                }
+            });
             if (s.isEmpty()) {
                 nameField.setText(viewpoint.getName());
-            } else {
-                manager.renameViewpoint(viewpointIndex, s);
             }
             syncNameLength();
         });
         this.groupField.setText(viewpoint.getGroup());
-        this.groupField.setFocusLostCallback(s -> {
-            viewpoint.setGroup(s);
-            manager.saveViewpoints();
-        });
+        this.groupField.setFocusLostCallback(s -> mutateAndMaybeSave(() -> viewpoint.setGroup(s)));
         this.xField = coordField(String.format("%.1f", viewpoint.getX()));
         this.yField = coordField(String.format("%.1f", viewpoint.getY()));
         this.zField = coordField(String.format("%.1f", viewpoint.getZ()));
@@ -120,9 +130,21 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         return this;
     }
 
+    /** 注入克隆回调（返回 this 便于链式调用）。 */
+    public ViewpointEditGUI setOnCloneRequested(Runnable onCloneRequested) {
+        this.onCloneRequested = onCloneRequested;
+        return this;
+    }
+
     private void requestDelete() {
         if (onDeleteRequested != null) {
             onDeleteRequested.run();
+        }
+    }
+
+    private void requestClone() {
+        if (onCloneRequested != null) {
+            onCloneRequested.run();
         }
     }
 
@@ -143,7 +165,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
 
     /** @param inputMode true = 行内输入新分组名；false = 常规候选列表 */
     private void openGroupList(boolean inputMode) {
-        List<String> groups = existingGroups();
+        List<String> groups = manager.getGroups();
         DropdownListPanel list = new DropdownListPanel();
         list.setBackgroundPainter(DropdownStyle.LIST_BG);
 
@@ -162,14 +184,16 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             list.add(okBtn, rowX + rowW - 40, DropdownStyle.ROW_TOP, 40, LIST_ROW_H);
         } else {
             rows = Math.min(groups.size() + 2, LIST_MAX_ROWS);
+            String current = viewpoint.getGroup();
             // 「新建分组」永远可用 —— 没有任何已有分组时它是唯一入口
-            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null),
+            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null, false),
                     rowX, DropdownStyle.ROW_TOP, rowW, LIST_ROW_H);
-            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.none"), ""),
+            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.none"), "",
+                            current.isEmpty()),
                     rowX, DropdownStyle.ROW_TOP + LIST_ROW_H, rowW, LIST_ROW_H);
             for (int i = 0; i < rows - 2; i++) {
                 String name = groups.get(i);
-                list.add(createGroupEntry(Text.literal(name), name),
+                list.add(createGroupEntry(Text.literal(name), name, name.equals(current)),
                         rowX, DropdownStyle.ROW_TOP + (i + 2) * LIST_ROW_H, rowW, LIST_ROW_H);
             }
         }
@@ -183,7 +207,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.clickCatcher = ClickCatcher.closeOnOutsideClick(this::closeGroupList);
         this.clickCatcher.setHost(this);
         this.groupList = list;
-        this.root.add(this.clickCatcher, 0, 0, 50, 23);
+        this.root.add(this.clickCatcher, 0, 0, ROOT_W / 5, ROOT_H / 5);
         // +1 格（5px）是面板的垂直留白（上 2 + 下 3），见 DropdownStyle.VERTICAL_PADDING
         this.root.add(list, LIST_X, LIST_Y, LIST_W / 5, rows * LIST_ROW_H / 5 + 1);
 
@@ -196,7 +220,6 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         if (!name.isEmpty()) {
             groupField.setText(name);
             viewpoint.setGroup(name);
-            manager.saveViewpoints();
         }
         closeGroupList();
     }
@@ -215,8 +238,14 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     /** value 为 null 表示「新建分组」入口，点击后切换到行内输入。 */
-    private WButton createGroupEntry(Text label, String value) {
-        return new WButton(label).setOnClick(() -> {
+    /**
+     * 分组候选行。
+     *
+     * @param value   null = 「新建分组」入口（点击切到行内输入）；空串 = 「（无分组）」
+     * @param current 该书签当前所在的分组：置灰不可点（再选一次没有意义，选别的行才有意义）
+     */
+    private WButton createGroupEntry(Text label, String value, boolean current) {
+        WButton btn = new WButton(label).setOnClick(() -> {
             if (value == null) {
                 closeGroupList();
                 openGroupList(true);
@@ -224,21 +253,10 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             }
             groupField.setText(value);
             viewpoint.setGroup(value);
-            manager.saveViewpoints();
             closeGroupList();
         });
-    }
-
-    /** 按出现顺序收集已有分组名（与主界面分组筛选同一套规则）。 */
-    private List<String> existingGroups() {
-        List<String> groups = new ArrayList<>();
-        for (Viewpoint vp : manager.getViewpoints()) {
-            String group = vp.getGroup();
-            if (!group.isEmpty() && !groups.contains(group)) {
-                groups.add(group);
-            }
-        }
-        return groups;
+        btn.setEnabled(!current);
+        return btn;
     }
 
     private void syncNameLength() {
@@ -251,7 +269,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         field.setTextPredicate(NUMBER_PREDICATE);
         field.setText(initial);
         field.setFocusLostCallback(s -> {
-            applyCoordinates();
+            mutateAndMaybeSave(this::applyCoordinates);
             // 回填：输入为空或只有 "-" / "." 这类半截内容时 parse 会失败，若不回填，
             // 输入框显示的内容会和模型里的真实值不一致。
             refreshFields();
@@ -272,13 +290,38 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         pitchField.setText(String.format("%.1f", viewpoint.getPitch()));
     }
 
+    /**
+     * 把输入框内容写回模型（不落盘；解析失败的字段保持原值）。
+     * <p>落盘由 {@link #mutateAndMaybeSave} 在调用处负责判断。
+     */
     private void applyCoordinates() {
         try { viewpoint.setX(Double.parseDouble(xField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setY(Double.parseDouble(yField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setZ(Double.parseDouble(zField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setYaw(Float.parseFloat(yawField.getText())); } catch (NumberFormatException ignored) {}
         try { viewpoint.setPitch(Float.parseFloat(pitchField.getText())); } catch (NumberFormatException ignored) {}
-        manager.saveViewpoints();
+    }
+
+    /** 模型当前值的快照，用于判断一次修改是否真的改了东西。 */
+    private String snapshot() {
+        return viewpoint.getName() + '\u0000' + viewpoint.getGroup()
+                + '\u0000' + viewpoint.getX() + '\u0000' + viewpoint.getY() + '\u0000' + viewpoint.getZ()
+                + '\u0000' + viewpoint.getYaw() + '\u0000' + viewpoint.getPitch();
+    }
+
+    /**
+     * 执行一次修改，<b>只有真的改了值才落盘</b>。
+     *
+     * <p>为什么不一律在关闭时统一落盘：那样崩溃 / 强杀（不走 {@code Screen#removed()}）会丢掉编辑内容。
+     * 为什么不每次失焦都无条件落盘：5 个坐标框逐个失焦会白写 5 次盘。
+     * 折中成「变了才写」——既没有丢改动的窗口，也没有无意义的写盘。
+     */
+    private void mutateAndMaybeSave(Runnable mutation) {
+        String before = snapshot();
+        mutation.run();
+        if (!snapshot().equals(before)) {
+            manager.saveViewpoints();
+        }
     }
 
     private void setToCurrent() {
@@ -288,19 +331,21 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         Viewpoint snapshot = manager.captureViewSnapshot("");
         if (snapshot == null) return;
 
-        viewpoint.setX(snapshot.getX());
-        viewpoint.setY(snapshot.getY());
-        viewpoint.setZ(snapshot.getZ());
-        viewpoint.setYaw(snapshot.getYaw());
-        viewpoint.setPitch(snapshot.getPitch());
+        mutateAndMaybeSave(() -> {
+            viewpoint.setX(snapshot.getX());
+            viewpoint.setY(snapshot.getY());
+            viewpoint.setZ(snapshot.getZ());
+            viewpoint.setYaw(snapshot.getYaw());
+            viewpoint.setPitch(snapshot.getPitch());
+        });
 
         refreshFields();
-        manager.saveViewpoints();
     }
 
     private void setupRoot() {
-        // 高度收窄到 115：内容到 y=21 格（105px）为止，下拉 4 行（25 + 4×20 + 3 = 108px）也放得下
-        this.root.setSize(250, 115);
+        // 高度 135：原内容到 y=21 格（105px），再加一行克隆按钮（y=22，110..130px）；
+        // 下拉 5 行（25 + 5×20 + 3 = 128px）也放得下。尺寸见 ROOT_W/ROOT_H（挡板共用同一份）
+        this.root.setSize(ROOT_W, ROOT_H);
         this.root.add(this.nameField, 1, 1, 23, 4);
         this.root.add(this.groupField, 26, 1, 18, 4);
         this.root.add(this.groupPickBtn, 45, 1, 4, 4);
@@ -321,16 +366,21 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.root.add(this.setCurrentBtn, 25, 17, 19, 4);
         this.root.add(this.deleteBtn, 45, 17, 4, 4);
 
+        // 克隆：独占一行、与上方输入框同宽（240px），复制后直接切到编辑副本
+        this.root.add(this.cloneBtn, 1, 22, 48, 4);
+
         this.root.validate(this);
     }
 
+    /** 关闭编辑页时调用：把全部字段写回模型并统一落盘一次。 */
     public void saveData() {
         // 名字为空时不覆盖旧名：用户可能只是随手清了输入框，不该把书签变成无名
         String name = nameField.getText();
         if (!name.isEmpty()) {
-            manager.renameViewpoint(viewpointIndex, name);
+            viewpoint.setName(name);
         }
         applyCoordinates();
+        manager.saveViewpoints();
     }
 
     @Override

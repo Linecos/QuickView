@@ -4,8 +4,10 @@ import com.github.houbb.pinyin.constant.enums.PinyinStyleEnum;
 import com.github.houbb.pinyin.util.PinyinHelper;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 书签搜索的匹配键生成：原文、全拼、声母。
@@ -33,6 +35,27 @@ import java.util.Locale;
  */
 public final class PinyinSearch {
     private static final int KEY_CAPACITY = 6;
+    /** 缓存容量：书签名重复率低，逐出开销可接受；几百个书签也绰绰有余。 */
+    private static final int CACHE_MAX_ENTRIES = 256;
+
+    /**
+     * houbb 字典是懒加载的，初始化本身未必线程安全：预热线程与主线程同时首次调用可能竞争。
+     * 所有 PinyinHelper 调用都收拢到同一把锁里 —— 预热完成后无竞争的同步开销可忽略。
+     */
+    private static final Object PINYIN_LOCK = new Object();
+
+    /**
+     * name → keys 的有界 LRU。搜索框每敲一个字符会对全部书签各调一次 keysOf，
+     * 不缓存的话每次按键都是 O(N) × 每名 4 轮拼音转换（逐字那轮还是逐字符调库）。
+     * 只在渲染/输入线程访问，无需并发容器。
+     */
+    private static final LinkedHashMap<String, List<String>> KEYS_CACHE =
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, List<String>> eldest) {
+                    return size() > CACHE_MAX_ENTRIES;
+                }
+            };
 
     private PinyinSearch() {
     }
@@ -43,18 +66,36 @@ public final class PinyinSearch {
      */
     public static void warmUp() {
         try {
-            PinyinHelper.toPinyin("预热", PinyinStyleEnum.NORMAL, "");
+            convert("预热", PinyinStyleEnum.NORMAL);
         } catch (RuntimeException ignored) {
             // 预热失败不影响功能，真正用到时会再初始化一次
         }
     }
 
-    /** 生成一个书签名的全部匹配键，全部小写并已去重。 */
-    public static List<String> keysOf(String name) {
-        List<String> keys = new ArrayList<>(KEY_CAPACITY);
-        if (name == null || name.isEmpty()) {
-            return keys;
+    /** 所有 PinyinHelper 调用的唯一入口：持锁转换，保证字典初始化不会并发执行。 */
+    private static String convert(String s, PinyinStyleEnum style) {
+        synchronized (PINYIN_LOCK) {
+            return PinyinHelper.toPinyin(s, style, "");
         }
+    }
+
+    /** 生成一个书签名的全部匹配键，全部小写并已去重。结果有缓存，可高频重复调用。 */
+    public static List<String> keysOf(String name) {
+        if (name == null || name.isEmpty()) {
+            return List.of();
+        }
+        List<String> cached = KEYS_CACHE.get(name);
+        if (cached != null) {
+            return cached;
+        }
+        List<String> keys = computeKeys(name);
+        keys = List.copyOf(keys);
+        KEYS_CACHE.put(name, keys);
+        return keys;
+    }
+
+    private static List<String> computeKeys(String name) {
+        List<String> keys = new ArrayList<>(KEY_CAPACITY);
 
         StringBuilder charWiseFull = new StringBuilder(name.length());
         StringBuilder charWiseInitials = new StringBuilder(name.length());
@@ -72,7 +113,7 @@ public final class PinyinSearch {
     }
 
     private static String toPinyin(String name, PinyinStyleEnum style) {
-        String result = PinyinHelper.toPinyin(name, style, "");
+        String result = convert(name, style);
         return result == null ? "" : result.toLowerCase(Locale.ROOT);
     }
 
@@ -99,7 +140,7 @@ public final class PinyinSearch {
 
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
-            String converted = PinyinHelper.toPinyin(String.valueOf(c), PinyinStyleEnum.NORMAL, "");
+            String converted = convert(String.valueOf(c), PinyinStyleEnum.NORMAL);
 
             if (converted != null && !converted.isEmpty() && !converted.equals(String.valueOf(c))) {
                 String lower = converted.toLowerCase(Locale.ROOT);

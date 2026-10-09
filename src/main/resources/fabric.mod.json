@@ -24,9 +24,9 @@
     "quickview.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.17.0",
+    "fabricloader": ">=0.18.3",
     "fabric-api": ">=0.141.6",
-    "libgui": "*",
+    "libgui": ">=15.1.0 <16",
     "minecraft": "~1.21.11",
     "java": ">=21"
   }
