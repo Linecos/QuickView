@@ -394,6 +394,28 @@ public class QuickViewManager {
         }
     }
 
+    /**
+     * 克隆书签：复制全部字段（含分组），插入到原书签之后并落盘，返回克隆书签的下标；失败返回 -1。
+     * <p>克隆名由调用方生成（语言文件里的「%s 副本」）；{@code indexOf} 是身份语义
+     * （{@code Viewpoint} 未覆写 equals），传入的对象必须还在当前列表里，
+     * 否则静默失败（与按身份删除同一陷阱）。
+     * <p>返回下标而不是对象引用，是因为 GUI 关闭编辑页会触发
+     * {@code refreshList()} → {@link #loadViewpoints()} 整表换新对象；重载只换对象、
+     * 不改顺序，所以这个下标在重载后仍指向克隆出来的书签。
+     */
+    public int cloneViewpointAfter(Viewpoint original, String cloneName) {
+        if (original == null) return -1;
+        int idx = viewpoints.indexOf(original);
+        if (idx < 0) return -1;
+        Viewpoint copy = new Viewpoint(cloneName, original.getDimension(),
+                original.getX(), original.getY(), original.getZ(),
+                original.getYaw(), original.getPitch());
+        copy.setGroup(original.getGroup());
+        viewpoints.add(idx + 1, copy);
+        saveViewpoints();
+        return idx + 1;
+    }
+
     public void switchToViewpoint(Viewpoint vp) {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientPlayerEntity player = client.player;

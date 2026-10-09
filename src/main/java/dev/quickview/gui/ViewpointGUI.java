@@ -24,6 +24,20 @@ public class ViewpointGUI extends LightweightGuiDescription {
     /** 主面板高 250px，列表从 y≈30px 起，最多再放下 8 行。 */
     private static final int GROUP_MAX_ROWS = 8;
 
+    /**
+     * 面板尺寸（像素）。{@link #root} 与两处下拉挡板都用它 —— 尺寸只定义一份，
+     * 免得以后调整高度时挡板漏改（编辑页就踩过：挡板留在旧高度，露出的按钮在下拉展开时能被点到）。
+     */
+    private static final int ROOT_W = 350;
+    private static final int ROOT_H = 250;
+
+    /** 归组下拉列表的几何：挂在「归组已选」按钮上方（底边贴动作行顶边），左缘与按钮对齐。 */
+    private static final int ASSIGN_LIST_X = 10;   // 格，= 动作行中间格左缘
+    private static final int ASSIGN_LIST_W = 140;  // px
+    private static final int ASSIGN_ROW_H = 20;    // px
+    /** 动作行上方到顶行的空间有限，最多同时显示几行。 */
+    private static final int ASSIGN_MAX_ROWS = 8;
+
     private final WTextFieldExtra search = new WTextFieldExtra()
             .setSuggestion(Text.translatable("quickview.gui.main.search"))
             .setMaxLength(64);
@@ -42,6 +56,9 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private final WToggleButton sortBtn = new WToggleButton(Text.translatable("quickview.gui.main.sort"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::sortBtnCallback);
+    private final WToggleButton assignBtn = new WToggleButton(Text.translatable("quickview.gui.main.assign"))
+            .setColor(0xFFFFFFFF, 0xFFFFFFFF)
+            .setOnToggle(this::assignBtnCallback);
     private final WButton groupBtn = new WButton(Text.translatable("quickview.gui.main.groupAll"))
             .setOnClick(this::toggleGroupList);
     private final WButton settingsBtn = new WGearButton()
@@ -51,6 +68,9 @@ public class ViewpointGUI extends LightweightGuiDescription {
     /** 批量删除的「删除已选 (N)」按钮：垃圾桶图标 + 数量。 */
     private final WButton deleteSelectedBtn = new WButton(TRASH, Text.translatable("quickview.gui.main.deleteSelected", 0))
             .setOnClick(this::deleteSelectedCallback);
+    /** 批量归组的「归组已选 (N)」按钮：点开目标分组下拉。 */
+    private final WButton assignSelectedBtn = new WButton(Text.translatable("quickview.gui.main.assignSelected", 0))
+            .setOnClick(() -> openAssignGroupList(false));
     /**
      * 动作行中间格的「模式提示」：一个带按钮背景、disabled 的 WButton，文字按模式变化。
      * 分两个实例 —— hintPlain（无图标，编辑/排序用）和 hintTrash（垃圾桶图标紧贴文字左边，删除用），
@@ -75,7 +95,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private final WGridPanel root = new WGridPanel(5) {
         @Override
         public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
-            if (groupListPanel != null) {
+            if (groupListPanel != null || assignGroupPanel != null) {
                 super.paint(context, x, y, HOVER_OFF_XY, HOVER_OFF_XY);
                 return;
             }
@@ -90,8 +110,14 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private WGridPanel groupListPanel;
     /** 展开列表时铺满面板的透明挡板，点列表外先把列表收起。 */
     private ClickCatcher groupCatcher;
+    /** 展开中的「归组已选」目标分组下拉；null 表示收起。 */
+    private WGridPanel assignGroupPanel;
+    /** 归组下拉的透明挡板，点列表外先把列表收起。 */
+    private ClickCatcher assignCatcher;
+    /** 归组下拉处于「输入新分组名」状态时记住输入框，确认后要把内容写回。 */
+    private WTextFieldExtra assignNewGroupField;
     /** 动作行中间格当前放的是谁（LibGui 15.1.0 无 setVisible，用 add/remove 切换）。 */
-    private enum MiddleSlot { RESTORE, HINT_PLAIN, HINT_TRASH, DELETE_SELECTED }
+    private enum MiddleSlot { RESTORE, HINT_PLAIN, HINT_TRASH, DELETE_SELECTED, ASSIGN_SELECTED }
     private MiddleSlot middleSlot = MiddleSlot.RESTORE;
 
     public ViewpointGUI() {
@@ -130,8 +156,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
             }
             if (editBtn.getToggle()) {
                 openEditScreen(vp);
-            } else if (deleteBtn.getToggle()) {
-                // 批量删除模式：点条目 = 勾选/取消勾选，最后用「删除已选」统一确认
+            } else if (deleteBtn.getToggle() || assignBtn.getToggle()) {
+                // 批量删除/归组模式：点条目 = 勾选/取消勾选，最后用「删除已选」/「归组已选」统一处理
                 panel.toggleSelected(vp);
             } else {
                 manager.switchToViewpoint(vp);
@@ -141,7 +167,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
     }
 
     private void setupRoot() {
-        this.root.setSize(350, 250);
+        this.root.setSize(ROOT_W, ROOT_H);
 
         // 第一行：左上角分组切换（按钮本身点开下拉），右侧搜索框。搜索框补位到行尾，
         // 「清空 ×」不再是独立方块按钮（会被误当关闭页面），改成叠在搜索框内部右端的透明图标。
@@ -151,10 +177,11 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
         this.root.add(this.panel, 1, 6, 68, 33);
 
-        // 第二行：三个「模式开关」，彼此互斥，改变「点条目」的含义；顺序：编辑 → 排序 → 删除
+        // 第二行：四个「模式开关」，彼此互斥，改变「点条目」的含义；顺序：编辑 → 排序 → 归组 → 删除
         this.root.add(this.editBtn, 1, 40, 11, 4);
         this.root.add(this.sortBtn, 14, 40, 11, 4);
-        this.root.add(this.deleteBtn, 27, 40, 11, 4);
+        this.root.add(this.assignBtn, 27, 40, 11, 4);
+        this.root.add(this.deleteBtn, 40, 40, 11, 4);
 
         // 第三行：动作按钮。中间格按模式复用 —— 无模式=恢复视角；编辑/排序=提示按钮；删除=垃圾桶提示/删除已选。
         this.root.add(this.addBtn, 1, 45, 8, 4);
@@ -232,7 +259,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.groupCatcher = ClickCatcher.closeOnOutsideClick(this::closeGroupList);
         this.groupCatcher.setHost(this);
         this.groupListPanel = list;
-        this.root.add(this.groupCatcher, 0, 0, 70, 50);
+        this.root.add(this.groupCatcher, 0, 0, ROOT_W / 5, ROOT_H / 5);
         // +1 格（5px）是面板的垂直留白（上 2 + 下 3），见 DropdownStyle.VERTICAL_PADDING
         this.root.add(list, GROUP_LIST_X, 6, GROUP_LIST_W / 5, rows * GROUP_ROW_H / 5 + 1);
     }
@@ -257,6 +284,149 @@ public class ViewpointGUI extends LightweightGuiDescription {
         });
         btn.setEnabled(!selected);
         return btn;
+    }
+
+    /**
+     * 「归组已选 (N)」点开的下拉：挂在动作行上方（底边贴动作行顶边）。
+     * 内容与编辑页一致：「＋ 新建分组…」（进入行内输入）、「（无分组）」、各已有分组；
+     * 选中即把勾选的书签批量移入该分组（「（无分组）」= 移出分组）。
+     *
+     * @param inputMode true = 行内输入新分组名；false = 常规候选列表
+     */
+    private void openAssignGroupList(boolean inputMode) {
+        closeAssignGroupList();
+        closeGroupList();   // 两个下拉各自都有挡板，理论上不会同时开；显式关掉更稳
+        List<String> groups = manager.getGroups();
+
+        DropdownListPanel list = new DropdownListPanel();
+        list.setBackgroundPainter(DropdownStyle.LIST_BG);
+
+        // 与分组筛选下拉同一套视觉：行内缩 1px 露出左右描边，面板与行同宽
+        int rowX = 1;
+        int rowW = ASSIGN_LIST_W - 2;
+
+        int rows;
+        if (inputMode) {
+            rows = 1;
+            assignNewGroupField = new WTextFieldExtra()
+                    .setSuggestion(Text.translatable("quickview.gui.edit.group.new.hint"));
+            WButton okBtn = new WButton(Text.translatable("quickview.gui.confirm.ok"))
+                    .setOnClick(this::confirmAssignNewGroup);
+            list.add(assignNewGroupField, rowX, DropdownStyle.ROW_TOP, rowW - 43, ASSIGN_ROW_H);
+            list.add(okBtn, rowX + rowW - 40, DropdownStyle.ROW_TOP, 40, ASSIGN_ROW_H);
+        } else {
+            rows = Math.min(groups.size() + 2, ASSIGN_MAX_ROWS);
+            String current = commonSelectedGroup();
+            list.add(createAssignGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null, false),
+                    rowX, DropdownStyle.ROW_TOP, rowW, ASSIGN_ROW_H);
+            list.add(createAssignGroupEntry(Text.translatable("quickview.gui.edit.group.none"), "",
+                            current != null && current.isEmpty()),
+                    rowX, DropdownStyle.ROW_TOP + ASSIGN_ROW_H, rowW, ASSIGN_ROW_H);
+            for (int i = 0; i < rows - 2; i++) {
+                String name = groups.get(i);
+                list.add(createAssignGroupEntry(Text.literal(name), name,
+                                current != null && current.equals(name)),
+                        rowX, DropdownStyle.ROW_TOP + (i + 2) * ASSIGN_ROW_H, rowW, ASSIGN_ROW_H);
+            }
+        }
+        // setHost 会递归设给已加入的子控件；必须在 requestFocus 之前调，否则焦点请求会被静默忽略
+        list.setHost(this);
+        if (inputMode && assignNewGroupField != null) {
+            assignNewGroupField.requestFocus();
+        }
+
+        // 挡板先加（在列表下层）；列表后加，画在最上面。
+        // 位置：底边贴动作行顶边（row 45 = 225px），向上展开；+1 格是面板垂直留白（上 2 + 下 3）
+        this.assignCatcher = ClickCatcher.closeOnOutsideClick(this::closeAssignGroupList);
+        this.assignCatcher.setHost(this);
+        this.assignGroupPanel = list;
+        this.root.add(this.assignCatcher, 0, 0, ROOT_W / 5, ROOT_H / 5);
+        this.root.add(list, ASSIGN_LIST_X,
+                45 - (rows * ASSIGN_ROW_H / 5 + 1), ASSIGN_LIST_W / 5, rows * ASSIGN_ROW_H / 5 + 1);
+    }
+
+    private void closeAssignGroupList() {
+        if (this.assignGroupPanel != null) {
+            this.root.remove(this.assignGroupPanel);
+            this.assignGroupPanel = null;
+        }
+        if (this.assignCatcher != null) {
+            this.root.remove(this.assignCatcher);
+            this.assignCatcher = null;
+        }
+        this.assignNewGroupField = null;
+    }
+
+    /**
+     * 归组候选行。
+     *
+     * @param value   null = 「新建分组」入口；空串 = 「（无分组）」
+     * @param current 勾选项当前所在的分组 → 置灰不可点（同分组筛选下拉的做法）
+     */
+    private WButton createAssignGroupEntry(Text label, String value, boolean current) {
+        WButton btn = new WButton(label).setOnClick(() -> {
+            if (value == null) {
+                openAssignGroupList(true);
+                return;
+            }
+            applyGroupToSelected(value);
+        });
+        btn.setEnabled(!current);
+        return btn;
+    }
+
+    /**
+     * 勾选项当前的分组：<b>全部一致</b>时返回该分组（空串 = 无分组）
+     * ；没有勾选、或勾选项分属不同分组时返回 {@code null}（此时不置灰任何行 —— 选哪一行都至少有一个要改）。
+     */
+    private String commonSelectedGroup() {
+        List<Viewpoint> selected = panel.getSelected();
+        if (selected.isEmpty()) {
+            return null;
+        }
+        String first = selected.get(0).getGroup();
+        for (Viewpoint vp : selected) {
+            if (!vp.getGroup().equals(first)) {
+                return null;
+            }
+        }
+        return first;
+    }
+
+    /** 确认新建分组并归组：名字非空才生效；与已有分组重名时等同于选中该分组。 */
+    private void confirmAssignNewGroup() {
+        String name = assignNewGroupField != null ? assignNewGroupField.getText().trim() : "";
+        if (!name.isEmpty()) {
+            applyGroupToSelected(name);
+            return;
+        }
+        closeAssignGroupList();
+    }
+
+    /**
+     * 把勾选的书签批量移入指定分组（空串 = 移出分组）并落盘。
+     * 归组随时可再归组/移出、风险低，不弹二次确认（与删除不同）。
+     * <p>目标分组与现状完全一致时不写盘、不重建列表（与编辑页「值变了才落盘」同一套思路）。
+     */
+    private void applyGroupToSelected(String group) {
+        List<Viewpoint> selectedList = panel.getSelected();
+        closeAssignGroupList();
+        if (selectedList.isEmpty()) {
+            return;
+        }
+        boolean changed = false;
+        for (Viewpoint vp : selectedList) {
+            if (!vp.getGroup().equals(group)) {
+                vp.setGroup(group);
+                changed = true;
+            }
+        }
+        if (!changed) {
+            return;
+        }
+        manager.saveViewpoints();
+        // 重载刷新：分组筛选下归组会把条目移出当前筛选视图（或归入新分组），setData 会顺带清空勾选
+        applyGroupFilter();
     }
 
     private void updateGroupButton(List<String> groups) {
@@ -286,6 +456,28 @@ public class ViewpointGUI extends LightweightGuiDescription {
             // 只切屏：把改动落盘 + 刷新列表交给 closeCallback 统一做，避免重复写盘
             MinecraftClient.getInstance().setScreen(main);
             openDeleteConfirm(main, vp, idx);
+        });
+        editGui.setOnCloneRequested(() -> {
+            // 先把输入框内容写回模型（与关闭时同一规则），再克隆 ——
+            // 否则改名后不点别处直接克隆，克隆出来的是旧名
+            editGui.saveData();
+            String base = vp.getName().isEmpty()
+                    ? Text.translatable("quickview.gui.edit.unnamed").getString()
+                    : vp.getName();
+            int cloneIdx = manager.cloneViewpointAfter(vp,
+                    Text.translatable("quickview.gui.edit.cloneName", base).getString());
+            if (cloneIdx < 0) return;
+            // 关闭编辑页：closeCallback 会再 saveData（幂等）+ refreshList（从盘重载，对象全换新）
+            MinecraftClient.getInstance().setScreen(main);
+            // ⚠️ cloneIdx 必须在关闭编辑页之前算出来（同删除的下标规则）：重载只换对象、
+            // 不改顺序，所以它在重载后仍指向克隆出来的书签 —— 直接切到编辑副本
+            List<Viewpoint> reloaded = manager.getViewpoints();
+            if (cloneIdx >= reloaded.size()) {
+                // 落盘静默失败时重载回来的列表里没有克隆对象，此时取下标会越界崩游戏；
+                // 正常路径不会走到这里
+                return;
+            }
+            openEditScreen(reloaded.get(cloneIdx));
         });
         MinecraftClient.getInstance().setScreen(screen);
     }
@@ -342,7 +534,11 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void editBtnCallback(Boolean toggled) {
         if (toggled) {
             this.deleteBtn.setToggle(false);
+            this.assignBtn.setToggle(false);
             setSortMode(false);
+            // 必须显式关掉选择模式：程序化 setToggle(false) 不会触发那两个开关的回调，
+            // 不清的话 selectMode 仍为 true、勾选集合还在 —— 编辑模式下会残留红/绿勾选框
+            panel.setSelectMode(false, true);
         }
         refreshActionRow();
     }
@@ -350,9 +546,10 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void deleteBtnCallback(Boolean toggled) {
         if (toggled) {
             this.editBtn.setToggle(false);
+            this.assignBtn.setToggle(false);
             setSortMode(false);
         }
-        panel.setSelectMode(toggled);
+        panel.setSelectMode(toggled, true);
         refreshActionRow();
     }
 
@@ -360,8 +557,21 @@ public class ViewpointGUI extends LightweightGuiDescription {
         if (toggled) {
             this.editBtn.setToggle(false);
             this.deleteBtn.setToggle(false);
+            this.assignBtn.setToggle(false);
+            // 同 editBtnCallback：排序模式不是选择模式，留着勾选会在列表上残留高亮
+            panel.setSelectMode(false, true);
         }
         setSortMode(toggled);
+        refreshActionRow();
+    }
+
+    private void assignBtnCallback(Boolean toggled) {
+        if (toggled) {
+            this.editBtn.setToggle(false);
+            this.deleteBtn.setToggle(false);
+            setSortMode(false);
+        }
+        panel.setSelectMode(toggled, false);
         refreshActionRow();
     }
 
@@ -376,8 +586,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
     /**
      * 刷新动作行中间格（模式切换、勾选变化时都调它）：
      * <ul>
-     *   <li>删除模式且有勾选 → 「删除已选 (N)」按钮</li>
-     *   <li>编辑/排序 → 无图标提示按钮；删除(未勾选) → 垃圾桶图标提示按钮</li>
+     *   <li>删除/归组模式且有勾选 → 「删除已选 (N)」/「归组已选 (N)」按钮</li>
+     *   <li>编辑/排序 → 无图标提示按钮；删除(未勾选) → 垃圾桶图标提示按钮；归组(未勾选) → 无图标提示按钮</li>
      *   <li>无模式 → 「恢复视角」按钮</li>
      * </ul>
      */
@@ -385,11 +595,14 @@ public class ViewpointGUI extends LightweightGuiDescription {
         boolean editMode = editBtn.getToggle();
         boolean deleteMode = deleteBtn.getToggle();
         boolean sortMode = sortBtn.getToggle();
+        boolean assignMode = assignBtn.getToggle();
         int selectedCount = panel.getSelectedCount();
 
         MiddleSlot target;
         if (deleteMode && selectedCount > 0) {
             target = MiddleSlot.DELETE_SELECTED;
+        } else if (assignMode && selectedCount > 0) {
+            target = MiddleSlot.ASSIGN_SELECTED;
         } else if (editMode) {
             hintPlain.setLabel(Text.translatable("quickview.gui.main.modeHint.edit"));
             target = MiddleSlot.HINT_PLAIN;
@@ -399,6 +612,9 @@ public class ViewpointGUI extends LightweightGuiDescription {
         } else if (deleteMode) {
             hintTrash.setLabel(Text.translatable("quickview.gui.main.modeHint.delete"));
             target = MiddleSlot.HINT_TRASH;
+        } else if (assignMode) {
+            hintPlain.setLabel(Text.translatable("quickview.gui.main.modeHint.assign"));
+            target = MiddleSlot.HINT_PLAIN;
         } else {
             target = MiddleSlot.RESTORE;
         }
@@ -406,6 +622,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
         deleteSelectedBtn.setLabel(Text.translatable("quickview.gui.main.deleteSelected", selectedCount));
         deleteSelectedBtn.setEnabled(selectedCount > 0);
+        assignSelectedBtn.setLabel(Text.translatable("quickview.gui.main.assignSelected", selectedCount));
+        assignSelectedBtn.setEnabled(selectedCount > 0);
     }
 
     /** 把动作行中间格换成指定槽位。LibGui 15.1.0 没有 setVisible，只能 add/remove 切换。 */
@@ -418,12 +636,14 @@ public class ViewpointGUI extends LightweightGuiDescription {
             case HINT_PLAIN -> this.root.remove(hintPlain);
             case HINT_TRASH -> this.root.remove(hintTrash);
             case DELETE_SELECTED -> this.root.remove(deleteSelectedBtn);
+            case ASSIGN_SELECTED -> this.root.remove(assignSelectedBtn);
         }
         switch (target) {
             case RESTORE -> this.root.add(restoreBtn, 10, 45, 54, 4);
             case HINT_PLAIN -> this.root.add(hintPlain, 10, 45, 54, 4);
             case HINT_TRASH -> this.root.add(hintTrash, 10, 45, 54, 4);
             case DELETE_SELECTED -> this.root.add(deleteSelectedBtn, 10, 45, 54, 4);
+            case ASSIGN_SELECTED -> this.root.add(assignSelectedBtn, 10, 45, 54, 4);
         }
         middleSlot = target;
         this.root.validate(this);

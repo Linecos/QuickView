@@ -19,11 +19,19 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private static final int LEFT_LABEL_W = 3;
     private static final int RIGHT_LABEL_W = 7;
 
+    /**
+     * 面板尺寸（像素）。{@link #root} 与展开下拉时的挡板都用它 —— 曾因为挡板硬编码旧高度
+     * （root 从 115 改到 135 时漏改），导致新增的克隆按钮有 15px 露在挡板外：下拉展开时点那里
+     * 不会收起下拉、反而直接触发克隆。尺寸只在这里定义一份。
+     */
+    private static final int ROOT_W = 250;
+    private static final int ROOT_H = 135;
+
     /** 下拉列表的宽度（像素）：与「分组输入框 + 下拉按钮」总宽一致（x 130 → 245）。 */
     private static final int LIST_W = 115;
     private static final int LIST_ROW_H = 20;
     /** 编辑面板高度有限，最多同时显示几项，再多就直接在手输框里打。 */
-    private static final int LIST_MAX_ROWS = 4;
+    private static final int LIST_MAX_ROWS = 5;
     private static final int LIST_X = 26;   // 格
     private static final int LIST_Y = 5;    // 格
 
@@ -73,6 +81,9 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     /** 删除按钮：红色垃圾桶图标（无独立文案，配合主界面的二次确认使用）。 */
     private final WButton deleteBtn = new WButton(new TrashIcon())
             .setOnClick(this::requestDelete);
+    /** 克隆按钮：复制当前书签为新书签（克隆后直接切到编辑副本）。 */
+    private final WButton cloneBtn = new WButton(Text.translatable("quickview.gui.edit.clone"))
+            .setOnClick(this::requestClone);
     private final QuickViewManager manager = QuickViewManager.getInstance();
 
     /** 展开中的分组候选列表；null 表示收起。 */
@@ -84,6 +95,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
 
     /** 由主界面注入：点「删除该书签」时回调（主界面负责先关编辑页、再弹确认）。 */
     private Runnable onDeleteRequested;
+    /** 由主界面注入：点「复制为新书签」时回调（主界面负责克隆、关编辑页并切到编辑副本）。 */
+    private Runnable onCloneRequested;
 
     public ViewpointEditGUI(Viewpoint viewpoint) {
         this.viewpoint = viewpoint;
@@ -117,9 +130,21 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         return this;
     }
 
+    /** 注入克隆回调（返回 this 便于链式调用）。 */
+    public ViewpointEditGUI setOnCloneRequested(Runnable onCloneRequested) {
+        this.onCloneRequested = onCloneRequested;
+        return this;
+    }
+
     private void requestDelete() {
         if (onDeleteRequested != null) {
             onDeleteRequested.run();
+        }
+    }
+
+    private void requestClone() {
+        if (onCloneRequested != null) {
+            onCloneRequested.run();
         }
     }
 
@@ -159,14 +184,16 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             list.add(okBtn, rowX + rowW - 40, DropdownStyle.ROW_TOP, 40, LIST_ROW_H);
         } else {
             rows = Math.min(groups.size() + 2, LIST_MAX_ROWS);
+            String current = viewpoint.getGroup();
             // 「新建分组」永远可用 —— 没有任何已有分组时它是唯一入口
-            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null),
+            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null, false),
                     rowX, DropdownStyle.ROW_TOP, rowW, LIST_ROW_H);
-            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.none"), ""),
+            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.none"), "",
+                            current.isEmpty()),
                     rowX, DropdownStyle.ROW_TOP + LIST_ROW_H, rowW, LIST_ROW_H);
             for (int i = 0; i < rows - 2; i++) {
                 String name = groups.get(i);
-                list.add(createGroupEntry(Text.literal(name), name),
+                list.add(createGroupEntry(Text.literal(name), name, name.equals(current)),
                         rowX, DropdownStyle.ROW_TOP + (i + 2) * LIST_ROW_H, rowW, LIST_ROW_H);
             }
         }
@@ -180,7 +207,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.clickCatcher = ClickCatcher.closeOnOutsideClick(this::closeGroupList);
         this.clickCatcher.setHost(this);
         this.groupList = list;
-        this.root.add(this.clickCatcher, 0, 0, 50, 23);
+        this.root.add(this.clickCatcher, 0, 0, ROOT_W / 5, ROOT_H / 5);
         // +1 格（5px）是面板的垂直留白（上 2 + 下 3），见 DropdownStyle.VERTICAL_PADDING
         this.root.add(list, LIST_X, LIST_Y, LIST_W / 5, rows * LIST_ROW_H / 5 + 1);
 
@@ -211,8 +238,14 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     /** value 为 null 表示「新建分组」入口，点击后切换到行内输入。 */
-    private WButton createGroupEntry(Text label, String value) {
-        return new WButton(label).setOnClick(() -> {
+    /**
+     * 分组候选行。
+     *
+     * @param value   null = 「新建分组」入口（点击切到行内输入）；空串 = 「（无分组）」
+     * @param current 该书签当前所在的分组：置灰不可点（再选一次没有意义，选别的行才有意义）
+     */
+    private WButton createGroupEntry(Text label, String value, boolean current) {
+        WButton btn = new WButton(label).setOnClick(() -> {
             if (value == null) {
                 closeGroupList();
                 openGroupList(true);
@@ -222,6 +255,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             viewpoint.setGroup(value);
             closeGroupList();
         });
+        btn.setEnabled(!current);
+        return btn;
     }
 
     private void syncNameLength() {
@@ -308,8 +343,9 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     private void setupRoot() {
-        // 高度收窄到 115：内容到 y=21 格（105px）为止，下拉 4 行（25 + 4×20 + 3 = 108px）也放得下
-        this.root.setSize(250, 115);
+        // 高度 135：原内容到 y=21 格（105px），再加一行克隆按钮（y=22，110..130px）；
+        // 下拉 5 行（25 + 5×20 + 3 = 128px）也放得下。尺寸见 ROOT_W/ROOT_H（挡板共用同一份）
+        this.root.setSize(ROOT_W, ROOT_H);
         this.root.add(this.nameField, 1, 1, 23, 4);
         this.root.add(this.groupField, 26, 1, 18, 4);
         this.root.add(this.groupPickBtn, 45, 1, 4, 4);
@@ -329,6 +365,9 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         // 「设为当前」向左扩到与 Yaw/Pitch 列对齐（x=25），加宽后与垃圾桶按钮一起填满右栏
         this.root.add(this.setCurrentBtn, 25, 17, 19, 4);
         this.root.add(this.deleteBtn, 45, 17, 4, 4);
+
+        // 克隆：独占一行、与上方输入框同宽（240px），复制后直接切到编辑副本
+        this.root.add(this.cloneBtn, 1, 22, 48, 4);
 
         this.root.validate(this);
     }

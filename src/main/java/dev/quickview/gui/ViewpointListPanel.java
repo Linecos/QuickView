@@ -41,6 +41,9 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
     /** 批量删除勾选态：浅红包裹 + 红边框（与排序落点预览同构，颜色换成危险红）。 */
     private static final int SELECT_FILL = 0x40FF5555;
     private static final int SELECT_BORDER = 0xFFFF5555;
+    /** 批量归组勾选态：绿色（与 README 徽章绿一致），表示「将移入分组」而不是删除。 */
+    private static final int GROUP_SELECT_FILL = 0x4062B47A;
+    private static final int GROUP_SELECT_BORDER = 0xFF62B47A;
 
     private final WTextField search;
     private final List<D> allData;
@@ -58,8 +61,10 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
     private boolean sortMode;
     private int cellWidth;
 
-    /** 批量删除的选择模式：开启时点条目 = 勾选/取消勾选，而非触发点击动作。 */
+    /** 批量删除/归组共用的选择模式：开启时点条目 = 勾选/取消勾选，而非触发点击动作。 */
     private boolean selectMode;
+    /** 勾选样式：danger=true 红（删除）、false 绿（归组）。两种模式互斥，同一时刻只有一种。 */
+    private boolean dangerSelect = true;
     /**
      * 已勾选的数据。用<b>身份</b>集合而不是 HashSet：勾选/拖拽/排序三处都依赖「同一批对象实例」的语义，
      * 显式身份集合把这条约束写死在类型里 —— 将来给 Viewpoint 覆写 equals 也不会悄悄改变行为。
@@ -94,11 +99,23 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
         this.onSelectionChanged = onSelectionChanged;
     }
 
-    /** 开关选择（批量删除）模式；关闭时清空勾选。 */
-    public void setSelectMode(boolean selectMode) {
+    /**
+     * 开关选择模式并指定样式：danger=true 红（批量删除）、false 绿（批量归组）。
+     * 关闭时清空勾选；两种模式互斥（主界面保证同一时刻只开一个），共用同一个勾选集合
+     * —— 这是刻意的：删除模式下勾错了模式，切到归组不用重新勾。
+     */
+    public void setSelectMode(boolean selectMode, boolean danger) {
+        boolean styleChanged = this.dangerSelect != danger;
         this.selectMode = selectMode;
+        this.dangerSelect = danger;
         if (!selectMode) {
             clearSelection();
+            return;
+        }
+        // 已有勾选时立刻按新样式重建条目：条目文字色是 layout 时写进去的，
+        // 不等外层恰好触发 layout，避免出现「红框配绿字」的短暂不一致
+        if (styleChanged && !selected.isEmpty()) {
+            layout();
         }
     }
 
@@ -344,8 +361,10 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
         context.enableScissor(x, y, x + this.width, y + this.height);
         super.paint(context, x, y, px, py);
 
-        // 批量删除勾选态：给已勾选条目画浅红包裹 + 红边框（与排序落点预览同构）
+        // 批量删除/归组勾选态：给已勾选条目画包裹 + 边框（与排序落点预览同构，颜色按模式区分）
         if (selectMode && !selected.isEmpty() && cellWidth > 0) {
+            int fill = dangerSelect ? SELECT_FILL : GROUP_SELECT_FILL;
+            int border = dangerSelect ? SELECT_BORDER : GROUP_SELECT_BORDER;
             for (int i = 0; i < data.size(); i++) {
                 if (!selected.contains(data.get(i))) {
                     continue;
@@ -357,11 +376,11 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
                 if (cellY + ENTRY_HEIGHT < y || cellY > y + this.height) {
                     continue;
                 }
-                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, ENTRY_HEIGHT, SELECT_FILL);
-                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, 1, SELECT_BORDER);
-                ScreenDrawing.coloredRect(context, cellX, cellY + ENTRY_HEIGHT - 1, cellWidth, 1, SELECT_BORDER);
-                ScreenDrawing.coloredRect(context, cellX, cellY, 1, ENTRY_HEIGHT, SELECT_BORDER);
-                ScreenDrawing.coloredRect(context, cellX + cellWidth - 1, cellY, 1, ENTRY_HEIGHT, SELECT_BORDER);
+                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, ENTRY_HEIGHT, fill);
+                ScreenDrawing.coloredRect(context, cellX, cellY, cellWidth, 1, border);
+                ScreenDrawing.coloredRect(context, cellX, cellY + ENTRY_HEIGHT - 1, cellWidth, 1, border);
+                ScreenDrawing.coloredRect(context, cellX, cellY, 1, ENTRY_HEIGHT, border);
+                ScreenDrawing.coloredRect(context, cellX + cellWidth - 1, cellY, 1, ENTRY_HEIGHT, border);
             }
         }
 
@@ -467,6 +486,8 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
             w.setSize(cellWidth, ENTRY_HEIGHT);
             ((IWWidget) w).setX(x);
             ((IWWidget) w).setY(y + 1);
+            // 先设样式再设勾选态：setSelected 用的是样式对应的文字色
+            w.setDangerStyle(dangerSelect);
             w.setSelected(selected.contains(d));
 
             this.children.add(w);
