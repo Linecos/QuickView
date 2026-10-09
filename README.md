@@ -7,7 +7,7 @@
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-62B47A?style=flat-square)
 ![Loader](https://img.shields.io/badge/Loader-Fabric-DBB69B?style=flat-square)
 ![Side](https://img.shields.io/badge/Side-Client--only-4C8DFF?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.0.2-8957E5?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.0.3-8957E5?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
 ---
@@ -193,6 +193,27 @@ src/main/java/dev/quickview/
   没有这个文件时才回退到自动生成的 commit 列表
 
 ## 更新日志
+
+### v1.0.3
+
+**新增**
+
+- **受伤立即恢复视角**：自由视角下受到伤害时立刻回到本体，并关闭打开中的 QuickView 界面（默认开，可在设置里关）
+- **批量归组**：「归组」模式勾选书签（绿色标记）→「归组已选 (N)」→ 从下拉选目标分组（含「＋ 新建分组…」/「（无分组）」），一次批量移入
+- **书签克隆**：编辑面板「复制为新书签」，复制坐标/朝向/分组并直接切到副本
+
+**改进**
+
+- 分组下拉里「当前所在的分组」置灰（编辑页按该书签、归组按勾选项的共同分组；分属不同分组时不置灰）
+- 设置页说明里的快捷键跟随实际改键立即刷新（以前要重进设置页）
+- 编辑面板改为「值真变了才落盘」：不再每次失焦都写盘，也不会因崩溃/强杀丢改动
+- 拼音搜索加缓存，书签多时输入更跟手
+- 依赖写准确：LibGui `15.x`、Fabric Loader `≥ 0.18.3`（原写 0.17.0 实际无法满足）
+
+**修复**
+
+- 编辑面板垃圾桶删除静默失效（1.0.2 起：确认框关闭但书签仍在）
+- 从「删除/归组」切到「编辑/排序」后列表残留红/绿勾选框
 
 ### v1.0.2
 
