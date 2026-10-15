@@ -43,6 +43,7 @@
   "quickview.gui.edit.clone": "Duplicate as New",
   "quickview.gui.edit.cloneName": "Copy of %s",
   "quickview.gui.edit.unnamed": "Unnamed",
+  "quickview.bookmark.default": "View %s",
   "quickview.gui.confirm.delete": "Delete \"%1$s\"?",
   "quickview.gui.confirm.deleteSelected": "Delete %s selected viewpoints?",
   "quickview.gui.confirm.ok": "OK",

@@ -115,7 +115,7 @@ public class QuickViewKeybindings {
                 // 仅换世界/维度时读盘；同上下文内的本地列表已是最新
                 manager.ensureContextCurrent();
                 int idx = manager.getViewpoints().size() + 1;
-                manager.addViewpoint("View " + idx);
+                manager.addViewpoint(Text.translatable("quickview.bookmark.default", idx).getString());
             }
 
             if (toggleMoveKey.wasPressed()) {
