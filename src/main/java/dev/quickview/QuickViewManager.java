@@ -17,6 +17,7 @@ import net.minecraft.world.World;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -281,14 +282,15 @@ public class QuickViewManager {
 
     /** 按出现顺序收集所有非空分组名（主界面筛选下拉与编辑页分组候选共用）。 */
     public List<String> getGroups() {
-        List<String> groups = new ArrayList<>();
+        // LinkedHashSet：既去重（O(1) contains，原 List.contains 是 O(N²)）又保持首次出现顺序
+        Set<String> groups = new LinkedHashSet<>();
         for (Viewpoint vp : viewpoints) {
             String group = vp.getGroup();
-            if (!group.isEmpty() && !groups.contains(group)) {
+            if (!group.isEmpty()) {
                 groups.add(group);
             }
         }
-        return groups;
+        return new ArrayList<>(groups);
     }
 
     public String getCurrentDimension() {
@@ -299,16 +301,31 @@ public class QuickViewManager {
         return currentContext;
     }
 
-    public void loadViewpoints() {
+    /**
+     * 若当前世界的「上下文 / 维度」与已加载的不一致，则从磁盘重新加载，返回是否发生了重载。
+     *
+     * <p>换服务器/存档（上下文变化）或换维度都会改变存储文件路径，必须重载；
+     * 而<b>同一上下文内的本地增删改都已直接作用于内存列表并落盘</b>，无需再读盘 ——
+     * 这样既省掉每次编辑/删除/克隆的一次磁盘 IO，也消除了「重载换对象、旧引用成孤儿」的隐患。
+     */
+    public boolean ensureContextCurrent() {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientWorld world = client.world;
-        if (world == null) return;
+        if (world == null) return false;
 
         RegistryKey<World> dimKey = world.getRegistryKey();
         Identifier dimId = dimKey.getValue();
-        currentDimension = dimId.toString();
-        currentContext = resolveContext(client);
+        String dimension = dimId.toString();
+        String context = resolveContext(client);
+
+        if (dimension.equals(currentDimension) && context.equals(currentContext)) {
+            return false;
+        }
+
+        currentDimension = dimension;
+        currentContext = context;
         viewpoints = ViewpointStorage.load(currentContext, currentDimension);
+        return true;
     }
 
     public void saveViewpoints() {
@@ -369,17 +386,14 @@ public class QuickViewManager {
     }
 
     /**
-     * 按下标移除并落盘。
+     * 按对象身份移除单个书签并落盘。
      *
-     * <p>用途很窄但必要：<b>需要跨「列表重载」删除时只能用下标</b>。GUI 关闭编辑页会触发
-     * {@code refreshList()} → {@link #loadViewpoints()} 把 {@code viewpoints} 整表换成新对象，
-     * 此时旧的 {@code Viewpoint} 引用已不在列表里，按身份移除会静默失败；
-     * 而重载只换对象、不改变顺序，所以重载前求出的下标仍然指向同一书签。
-     * <p>同一时刻没有重载的场合（勾选批量删除）请用 {@link #removeViewpoints(List)}。
+     * <p>{@code Viewpoint} 未覆写 {@code equals}，所以列表移除天然是身份语义；调用方须保证传入的对象
+     * 仍在当前列表里（编辑页直接持有引用，刷新列表时上下文未变、不会换对象）。
+     * <p>批量删除请用 {@link #removeViewpoints(List)}（一次落盘）。
      */
-    public void removeViewpoint(int index) {
-        if (index >= 0 && index < viewpoints.size()) {
-            viewpoints.remove(index);
+    public void removeViewpoint(Viewpoint vp) {
+        if (vp != null && viewpoints.remove(vp)) {
             saveViewpoints();
         }
     }
@@ -398,25 +412,21 @@ public class QuickViewManager {
     }
 
     /**
-     * 克隆书签：复制全部字段（含分组），插入到原书签之后并落盘，返回克隆书签的下标；失败返回 -1。
+     * 克隆书签：复制全部字段（含分组），插入到原书签之后并落盘，返回克隆出的新书签；失败返回 {@code null}。
      * <p>克隆名由调用方生成（语言文件里的「%s 副本」）；{@code indexOf} 是身份语义
-     * （{@code Viewpoint} 未覆写 equals），传入的对象必须还在当前列表里，
-     * 否则静默失败（与按身份删除同一陷阱）。
-     * <p>返回下标而不是对象引用，是因为 GUI 关闭编辑页会触发
-     * {@code refreshList()} → {@link #loadViewpoints()} 整表换新对象；重载只换对象、
-     * 不改顺序，所以这个下标在重载后仍指向克隆出来的书签。
+     * （{@code Viewpoint} 未覆写 equals），传入的对象必须还在当前列表里。
      */
-    public int cloneViewpointAfter(Viewpoint original, String cloneName) {
-        if (original == null) return -1;
+    public Viewpoint cloneViewpointAfter(Viewpoint original, String cloneName) {
+        if (original == null) return null;
         int idx = viewpoints.indexOf(original);
-        if (idx < 0) return -1;
+        if (idx < 0) return null;
         Viewpoint copy = new Viewpoint(cloneName, original.getDimension(),
                 original.getX(), original.getY(), original.getZ(),
                 original.getYaw(), original.getPitch());
         copy.setGroup(original.getGroup());
         viewpoints.add(idx + 1, copy);
         saveViewpoints();
-        return idx + 1;
+        return copy;
     }
 
     public void switchToViewpoint(Viewpoint vp) {

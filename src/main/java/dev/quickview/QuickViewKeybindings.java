@@ -100,7 +100,7 @@ public class QuickViewKeybindings {
                 if (closeQuickViewScreens()) {
                     return;
                 }
-                // ViewpointGUI 构造函数里已经 loadViewpoints()，这里不重复读盘
+                // ViewpointGUI 构造函数里已经 ensureContextCurrent()，这里不重复读盘
                 ViewpointGUI gui = new ViewpointGUI();
                 WrapperViewpointScreen screen = new WrapperViewpointScreen(gui);
                 screen.setParent(MinecraftClient.getInstance().currentScreen);
@@ -112,7 +112,8 @@ public class QuickViewKeybindings {
             }
 
             if (saveKey.wasPressed() && manager.isQuickAddEnabled()) {
-                manager.loadViewpoints();
+                // 仅换世界/维度时读盘；同上下文内的本地列表已是最新
+                manager.ensureContextCurrent();
                 int idx = manager.getViewpoints().size() + 1;
                 manager.addViewpoint("View " + idx);
             }
