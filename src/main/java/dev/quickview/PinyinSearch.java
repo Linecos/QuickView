@@ -140,6 +140,14 @@ public final class PinyinSearch {
 
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
+
+            // ASCII 不可能是汉字，跳过 convert（省一次加锁 + 库调用）。houbb 对非中文字符是原样透传的，
+            // 所以原代码对 ASCII 也必然落到下面的字母/数字分支，这里的结果完全等价。
+            if (c < 128) {
+                inAsciiRun = appendAsciiChar(c, full, initials, inAsciiRun);
+                continue;
+            }
+
             String converted = convert(String.valueOf(c), PinyinStyleEnum.NORMAL);
 
             if (converted != null && !converted.isEmpty() && !converted.equals(String.valueOf(c))) {
@@ -158,6 +166,23 @@ public final class PinyinSearch {
                 inAsciiRun = false;
             }
         }
+    }
+
+    /**
+     * ASCII 字符的逐字处理（与原逻辑的字母/数字分支等价）：连续字母/数字段只取首字符进声母。
+     *
+     * @return 更新后的「是否处在连续字母/数字段中」状态
+     */
+    private static boolean appendAsciiChar(char c, StringBuilder full, StringBuilder initials, boolean inAsciiRun) {
+        if (Character.isLetterOrDigit(c)) {
+            char lower = Character.toLowerCase(c);
+            full.append(lower);
+            if (!inAsciiRun) {
+                initials.append(lower);
+            }
+            return true;
+        }
+        return false;
     }
 
     private static void addKey(List<String> keys, String key) {
