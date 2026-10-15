@@ -129,7 +129,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
         this.setupRoot();
         this.setRootPanel(root);
         this.search.setChangedListener(s -> {
-            this.panel.applyFilter();
+            // 搜索只改可见集合、数据对象不变，用 refilter() 复用已有条目 widget（不再整表重建）
+            this.panel.refilter();
             // 清空按钮只在有输入时可用（漏了这步它就永远是暗的、点不动）
             this.clearBtn.setEnabled(!s.isEmpty());
         });
@@ -510,7 +511,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
     private void clearSearch() {
         search.setText("");
-        panel.applyFilter();
+        // setText 可能已触发 changedListener；这里再调一次是幂等的（数据未变，refilter 复用 widget）
+        panel.refilter();
         clearBtn.setEnabled(false);
     }
 

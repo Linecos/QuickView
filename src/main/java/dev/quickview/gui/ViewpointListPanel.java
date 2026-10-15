@@ -173,10 +173,26 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
         applyFilter();
     }
 
-    /** 搜索框内容变化时调用：重建可见列表并重置滚动。 */
+    /**
+     * 数据整表被替换后调用：重建可见列表、丢弃并重建全部条目 widget、重置滚动。
+     * <p>{@code configured.clear()} 是必要的：它让每条书签都用最新数据重新 {@code configurator.accept}
+     * 一遍 —— 改名 / 改分组后条目标签才会更新。数据对象没变的场景请用 {@link #refilter()}。
+     */
     public void applyFilter() {
         rebuildData();
         this.configured.clear();
+        this.scrollBar.setValue(0);
+        this.layout();
+    }
+
+    /**
+     * 仅搜索词变化时调用：重建可见列表并重置滚动，<b>复用已有条目 widget</b>。
+     * <p>数据对象没变、标签也没变，无需重建 widget（{@code layout()} 会按身份从 {@code configured} 取回）——
+     * 省掉「搜索每敲一个字符就重建整表控件」的分配。被筛掉的条目其 widget 留在 {@code configured} 里但不进
+     * {@code children}（不绘制），下次取消筛选再取回复用。
+     */
+    public void refilter() {
+        rebuildData();
         this.scrollBar.setValue(0);
         this.layout();
     }
