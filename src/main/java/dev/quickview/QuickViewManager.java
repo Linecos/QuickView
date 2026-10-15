@@ -10,6 +10,7 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.PlayerInput;
 import net.minecraft.util.Util;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
@@ -212,7 +213,9 @@ public class QuickViewManager {
     public void applyFreecamLook(double cursorDeltaX, double cursorDeltaY) {
         if (!viewActive || !config.isFreeMoveEnabled() || transitionActive) return;
 
-        freeYaw += (float) (cursorDeltaX * 0.15);
+        // 偏航角每次累加后归一化到 [-180,180)：不归一的话长时间自由视角会把 freeYaw 累加到很大，
+        // 一是 Math.toRadians 的精度随幅度下降，二是快照存进 JSON 的 Yaw 会显示成 4321.0 这类怪值。
+        freeYaw = MathHelper.wrapDegrees(freeYaw + (float) (cursorDeltaX * 0.15));
         freePitch += (float) (cursorDeltaY * 0.15);
         freePitch = Math.max(-90.0f, Math.min(90.0f, freePitch));
     }
@@ -473,14 +476,14 @@ public class QuickViewManager {
             freeX = startX;
             freeY = startY;
             freeZ = startZ;
-            freeYaw = startYaw;
+            freeYaw = MathHelper.wrapDegrees(startYaw);
             freePitch = startPitch;
         } else {
             transitionActive = false;
             freeX = targetX;
             freeY = targetY;
             freeZ = targetZ;
-            freeYaw = targetYaw;
+            freeYaw = MathHelper.wrapDegrees(targetYaw);
             freePitch = targetPitch;
         }
 
@@ -509,7 +512,7 @@ public class QuickViewManager {
         freeX = fromX + (targetX - fromX) * eased;
         freeY = fromY + (targetY - fromY) * eased;
         freeZ = fromZ + (targetZ - fromZ) * eased;
-        freeYaw = fromYaw + shortestAngleDelta(fromYaw, targetYaw) * (float) eased;
+        freeYaw = MathHelper.wrapDegrees(fromYaw + Angles.shortestDelta(fromYaw, targetYaw) * (float) eased);
         freePitch = fromPitch + (targetPitch - fromPitch) * (float) eased;
 
         prevX = freeX;
@@ -518,20 +521,9 @@ public class QuickViewManager {
 
         if (t >= 1.0) {
             transitionActive = false;
-            freeYaw = targetYaw;
+            freeYaw = MathHelper.wrapDegrees(targetYaw);
             freePitch = targetPitch;
         }
-    }
-
-    /** 两个偏航角之间的最短角度差，返回 [-180, 180)，避免转身时绕远路。 */
-    private static float shortestAngleDelta(float from, float to) {
-        float delta = (to - from) % 360.0f;
-        if (delta >= 180.0f) {
-            delta -= 360.0f;
-        } else if (delta < -180.0f) {
-            delta += 360.0f;
-        }
-        return delta;
     }
 
     public void restore() {
