@@ -114,6 +114,12 @@ public final class TweakerooFreecam {
             return true;
         } catch (Throwable t) {
             QuickViewClient.LOGGER.warn("切换到 Tweakeroo 自由相机失败: {}", t.toString());
+            // 可能已经打开了开关才失败：尽量再关掉，避免和调用方回落的自带相机同时生效
+            try {
+                setToggleValue.invoke(freeCameraToggle, false);
+            } catch (Throwable ignored) {
+                // 关不掉也只能记日志了，至少别把异常再抛出去
+            }
             return false;
         }
     }

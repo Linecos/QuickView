@@ -483,6 +483,9 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         if (!name.isEmpty()) {
             viewpoint.setName(name);
         }
+        // 分组也必须在这里写回：分组平时只靠「失焦回调」提交，而 LibGui 只在鼠标点击时释放焦点，
+        // 所以「在分组框打完字直接按 ESC/V 关面板」不会触发失焦 —— 不补这一句就会丢掉分组。
+        viewpoint.setGroup(groupField.getText());
         applyCoordinates();
         manager.saveViewpoints();
     }

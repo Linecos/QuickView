@@ -214,6 +214,13 @@ public class QuickViewManager {
     }
 
     public void onTickStart() {
+        // Tweakeroo 会自己关掉自由相机（典型场景：换维度时它强制 setBooleanValue(false)），
+        // 这里把标志同步回来，避免 QuickView 一直以为还在视角里（B 键 / 恢复按钮 / 受伤恢复都看 isViewActive()）。
+        // isEnabled() 只在确实处于 Tweakeroo 接管时才调用，开销可忽略。
+        if (tweakerooViewActive && !TweakerooFreecam.isEnabled()) {
+            tweakerooViewActive = false;
+            activeViewpoint = null;
+        }
         if (!viewActive) return;
 
         prevX = freeX;
@@ -491,7 +498,9 @@ public class QuickViewManager {
                 activeViewpoint = vp;
                 return;
             }
-            // 它没接住（世界未就绪 / API 不匹配）→ 继续走下面的自带实现
+            // 它没接住（世界未就绪 / API 不匹配 / 维度对不上）→ 先清掉「Tweakeroo 接管中」的标志，
+            // 否则回落到自带实现后会两个标志同时为真，restore() 会先清 Tweakeroo 而漏掉自带相机。
+            tweakerooViewActive = false;
         }
 
         // 必须在 viewActive 置位前取值：若已经是自由视角（例如在菜单里又点了另一个书签），
@@ -597,12 +606,12 @@ public class QuickViewManager {
     }
 
     public void restore() {
-        // Tweakeroo 接管中：关掉它的自由相机即可（视角恢复、相机复位都由它自己做）
+        // Tweakeroo 接管中：关掉它的自由相机（视角恢复、相机复位都由它自己做）。
+        // ⚠️ 不在这里早退：万一两个标志同时为真（Tweakeroo 开启失败后回落到自带实现等），
+        // 自带相机也必须一起清掉，否则会卡在自带自由视角里、savedPerspective 也回不去。
         if (tweakerooViewActive) {
             TweakerooFreecam.disable();
             tweakerooViewActive = false;
-            activeViewpoint = null;
-            return;
         }
         MinecraftClient client = MinecraftClient.getInstance();
         if (savedPerspective != null) {
