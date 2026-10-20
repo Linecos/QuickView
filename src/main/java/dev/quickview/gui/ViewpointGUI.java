@@ -201,7 +201,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
             vp.setGroup(groupFilter);
             manager.saveViewpoints();
         }
-        openEditScreen(vp);
+        openEditScreen(vp, true);
     }
 
     /** 把内存列表同步进面板，并按当前分组筛选刷新（编辑/删除后统一走这里）。 */
@@ -441,8 +441,16 @@ public class ViewpointGUI extends LightweightGuiDescription {
     }
 
     /** 打开书签编辑面板；关闭时保存改动并刷新列表。直接持有 Viewpoint 引用，不依赖下标。 */
+    /** 打开已有书签的编辑面板（底部：取消 / 保存 / 复制为新书签）。 */
     private void openEditScreen(Viewpoint vp) {
-        ViewpointEditGUI editGui = new ViewpointEditGUI(vp);
+        openEditScreen(vp, false);
+    }
+
+    /**
+     * @param creating true = 刚用 + 建的空书签（底部只给「取消 / 保存」；取消会删掉这条草稿）
+     */
+    private void openEditScreen(Viewpoint vp, boolean creating) {
+        ViewpointEditGUI editGui = new ViewpointEditGUI(vp, creating);
         WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
         Screen main = MinecraftClient.getInstance().currentScreen;
         screen.setCloseCallback(() -> {
@@ -450,6 +458,15 @@ public class ViewpointGUI extends LightweightGuiDescription {
             refreshList();
         });
         screen.setParent(main);
+        // 保存：关闭面板即可 —— 落盘由关闭时的 closeCallback 统一做（输入框里没失焦的内容也会写回）
+        editGui.setOnSaveRequested(() -> MinecraftClient.getInstance().setScreen(main));
+        // 取消：编辑模式已在面板里回滚并落盘；新建模式把这条草稿删掉（对象还在列表里，按身份删即可）
+        editGui.setOnCancelRequested(() -> {
+            if (creating) {
+                manager.removeViewpoint(vp);
+            }
+            MinecraftClient.getInstance().setScreen(main);
+        });
         editGui.setOnDeleteRequested(() -> {
             // 只切屏（把改动落盘 + 刷新列表交给 closeCallback 统一做），再弹确认。
             // 刷新列表不换对象，所以 vp 仍是列表里的那个实例 —— 直接按身份删除即可，不需要下标。
