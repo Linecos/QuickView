@@ -90,6 +90,14 @@ public class QuickViewManager {
     /** 从 config/quickview.json 读取设置，应在客户端初始化时调用一次。 */
     public void loadConfig() {
         this.config = QuickViewConfig.load();
+        // 配置里开着「用 Tweakeroo 灵魂出窍」但当前 Tweakeroo 不可用（没装 / 版本对不上）：
+        // 直接归零，避免设置页出现一个「灰着又是开」的开关 —— 那种状态在界面上关不掉，只能改文件。
+        // 功能本身不受影响：所有调用点都还要求 TweakerooFreecam.isAvailable()，否则回落自带实现
+        if (config.isUseTweakerooFreecam() && !TweakerooFreecam.isAvailable()) {
+            QuickViewClient.LOGGER.warn("配置启用了 Tweakeroo 自由相机，但 Tweakeroo 不可用，已关闭该项");
+            config.setUseTweakerooFreecam(false);
+            config.save();
+        }
     }
 
     public boolean isViewActive() {
