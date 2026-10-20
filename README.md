@@ -7,7 +7,7 @@
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-62B47A?style=flat-square)
 ![Loader](https://img.shields.io/badge/Loader-Fabric-DBB69B?style=flat-square)
 ![Side](https://img.shields.io/badge/Side-Client--only-4C8DFF?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.0.3-8957E5?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.0.4-8957E5?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
 ---
@@ -199,6 +199,26 @@ src/main/java/dev/quickview/
   没有这个文件时才回退到自动生成的 commit 列表
 
 ## 更新日志
+
+### v1.0.4
+
+**新增**
+
+- **使用 Tweakeroo 灵魂出窍**（设置页开关，默认关）：装了 Tweakeroo 时，切书签改由它的自由相机实现，
+  移动/输入/视角恢复都归它；没装则自动使用自带实现，该开关置灰。该模式下「受伤立即恢复」照常生效，
+  按 `B` 会连同它的自由相机一起关掉。已知取舍：平滑过渡在该模式下不生效
+- **编辑面板补「取消 / 保存」**：新建时底部是 取消/保存（取消不留空书签）；编辑时是 取消/保存/复制，
+  其中**取消会回滚本次所有改动**；原「复制为新书签」文案精简为「复制」
+
+**改进**
+
+- 书签列表以内存为准，只在换世界/维度时读盘；打开界面也不再重复读盘
+- 搜索过滤复用已建条目控件，拼音转换对 ASCII 走快路径
+- 快捷存点的默认书签名改用语言键（中文环境为「视角 3」而非 `View 3`）
+
+**修复**
+
+- 自由视角偏航角未归一化：长时间转视角后数值会持续累加（配置里可能出现 `4321.0` 这类值，角度换算精度下降），现统一归一到 `[-180, 180)`
 
 ### v1.0.3
 
