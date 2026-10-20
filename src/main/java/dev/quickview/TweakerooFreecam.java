@@ -94,7 +94,14 @@ public final class TweakerooFreecam {
         if (!available || viewpoint == null) {
             return false;
         }
-        Identifier dimension = Identifier.tryParse(viewpoint.getDimension());
+        // dimension 可能因 JSON 缺字段未被归一化（如直接构造的实例）而为 null，
+        // tryParse → trySplitOn 里直接 id.indexOf(':')，null 必 NPE；先挡一道兜底
+        String dimensionId = viewpoint.getDimension();
+        if (dimensionId == null) {
+            return false;
+        }
+        // 维度非法（不在任何命名空间里 / 空）时 tryParse 返回 null：调用方回落自带实现
+        Identifier dimension = Identifier.tryParse(dimensionId);
         if (dimension == null) {
             return false;
         }

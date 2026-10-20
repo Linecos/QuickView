@@ -62,7 +62,26 @@ public class ViewpointStorage {
 
             Type listType = LIST_TYPE;
             List<Viewpoint> result = GSON.fromJson(array, listType);
-            return result != null ? new ArrayList<>(result) : new ArrayList<>();
+            if (result == null) {
+                return new ArrayList<>();
+            }
+            // 归一化缺字段：JSON 若为手工编辑/外部工具写入，name / dimension 缺失时 Gson 会反序列化成 null，
+            // 而 Text.literal(null)（PlainTextContent.of 直接 isEmpty）与 Identifier.tryParse(null)（trySplitOn
+            // 直接 indexOf）都会 NPE——前者界面打开即崩、后者把异常抛进点击事件。数组里的 null 元素剔除。
+            List<Viewpoint> normalized = new ArrayList<>(result.size());
+            for (Viewpoint vp : result) {
+                if (vp == null) {
+                    continue;
+                }
+                if (vp.getName() == null) {
+                    vp.setName("");
+                }
+                if (vp.getDimension() == null) {
+                    vp.setDimension("");
+                }
+                normalized.add(vp);
+            }
+            return normalized;
         } catch (Exception e) {
             QuickViewClient.LOGGER.error("Failed to load viewpoints for context '{}' dimension '{}': {}", context, dimension, e.getMessage());
             return new ArrayList<>();
