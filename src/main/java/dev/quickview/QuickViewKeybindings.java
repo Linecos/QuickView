@@ -100,7 +100,7 @@ public class QuickViewKeybindings {
                 if (closeQuickViewScreens()) {
                     return;
                 }
-                // ViewpointGUI 构造函数里已经 loadViewpoints()，这里不重复读盘
+                // ViewpointGUI 构造函数里已经 ensureContextCurrent()，这里不重复读盘
                 ViewpointGUI gui = new ViewpointGUI();
                 WrapperViewpointScreen screen = new WrapperViewpointScreen(gui);
                 screen.setParent(MinecraftClient.getInstance().currentScreen);
@@ -112,14 +112,20 @@ public class QuickViewKeybindings {
             }
 
             if (saveKey.wasPressed() && manager.isQuickAddEnabled()) {
-                manager.loadViewpoints();
+                // 仅换世界/维度时读盘；同上下文内的本地列表已是最新
+                manager.ensureContextCurrent();
                 int idx = manager.getViewpoints().size() + 1;
-                manager.addViewpoint("View " + idx);
+                manager.addViewpoint(Text.translatable("quickview.bookmark.default", idx).getString());
             }
 
             if (toggleMoveKey.wasPressed()) {
                 manager.toggleFreeMove();
-                if (manager.isViewActive()) {
+                if (manager.isUsingTweakerooFreecam()) {
+                    // 这个开关只作用于自带的自由视角；Tweakeroo 模式下移动由 Tweakeroo 自己管，
+                    // 提示「已开启/已关闭」会误导，这里说明实际情况
+                    client.player.sendMessage(
+                            Text.translatable("quickview.message.tweakerooControlsMovement"), true);
+                } else if (manager.isViewActive()) {
                     String key = manager.isFreeMoveEnabled()
                             ? "quickview.message.moveEnabled"
                             : "quickview.message.moveDisabled";

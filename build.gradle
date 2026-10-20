@@ -54,13 +54,20 @@ dependencies {
     include "com.github.houbb:pinyin:${project.pinyin_version}"
     include "com.github.houbb:heaven:${project.pinyin_heaven_version}"
     include "com.github.houbb:nlp-common:${project.pinyin_nlp_common_version}"
+
+    // 单元测试：只测不依赖 Minecraft / Fabric 的纯函数（拼音搜索、路径清洗、角度、数据模型）
+    testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 processResources {
-    inputs.property "version", project.version
+    // ⚠️ configuration-cache：闭包在 CC 重放时不能再依赖隐式任务属性（如 `inputs`），否则执行期报
+    // MissingPropertyException: inputs。把版本号捕获成局部变量（String 可序列化）再传给闭包。
+    def modVersion = project.version
+    inputs.property "version", modVersion
 
     filesMatching("fabric.mod.json") {
-        expand "version": inputs.properties.version
+        expand "version": modVersion
     }
 }
 
@@ -72,4 +79,8 @@ tasks.withType(JavaCompile).configureEach {
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }

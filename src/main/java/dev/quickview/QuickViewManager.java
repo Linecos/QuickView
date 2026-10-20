@@ -10,12 +10,14 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.PlayerInput;
 import net.minecraft.util.Util;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -31,6 +33,11 @@ public class QuickViewManager {
     private String currentContext = "";
     private String currentDimension = "";
     private boolean viewActive = false;
+    /**
+     * 视角由 Tweakeroo 的自由相机接管中（{@link #viewActive} 保持 false —— 那套状态、混入和
+     * 自带自由移动都不参与，QuickView 只负责把相机摆到书签位置）。
+     */
+    private boolean tweakerooViewActive = false;
 
     /** 全局设置（config/quickview.json），改动即落盘。 */
     private QuickViewConfig config = new QuickViewConfig();
@@ -86,7 +93,39 @@ public class QuickViewManager {
     }
 
     public boolean isViewActive() {
+        // 使用 Tweakeroo 实现时 QuickView 自己的 viewActive 始终为 false（不接管相机），
+        // 但对外的「有没有在视角里」必须是 true —— B 键恢复、受伤恢复、设置页提示都靠它。
+        // ⚠️ 混入层（CameraMixin 等）**必须用 isNativeViewActive()**：它们要的是「自带相机是否在接管」，
+        // 用这个合并值会把 Tweakeroo 的相机覆盖到 freeX/Y/Z（此时全为 0）—— 表现就是切过去一片空白
+        return viewActive || tweakerooViewActive;
+    }
+
+    /**
+     * QuickView <b>自带的</b>自由视角是否在接管相机。
+     * <p>只给混入层与自带实现的内部逻辑用；UI/按键请用 {@link #isViewActive()}。
+     */
+    public boolean isNativeViewActive() {
         return viewActive;
+    }
+
+    /** 当前这次视角是不是交给 Tweakeroo 的自由相机在管（用于按键提示措辞）。 */
+    public boolean isUsingTweakerooFreecam() {
+        return tweakerooViewActive;
+    }
+
+    /** 设置项是否选了 Tweakeroo 实现（不代表当前真的接通了）。 */
+    public boolean isTweakerooFreecamSelected() {
+        return config.isUseTweakerooFreecam();
+    }
+
+    /** Tweakeroo 是否可用（装了且反射签名对得上）；设置页据此禁用开关。 */
+    public boolean isTweakerooFreecamAvailable() {
+        return TweakerooFreecam.isAvailable();
+    }
+
+    public void toggleUseTweakerooFreecam() {
+        config.setUseTweakerooFreecam(!config.isUseTweakerooFreecam());
+        config.save();
     }
 
     public boolean isQuickAddEnabled() {
@@ -202,7 +241,8 @@ public class QuickViewManager {
         lastHealth = health;
         lastAbsorption = absorption;
 
-        if (damaged && viewActive && config.isRestoreOnDamage()) {
+        // 用 isViewActive()：Tweakeroo 接管时 viewActive 是 false，但受伤同样要能恢复
+        if (damaged && isViewActive() && config.isRestoreOnDamage()) {
             restore();
             return true;
         }
@@ -212,7 +252,9 @@ public class QuickViewManager {
     public void applyFreecamLook(double cursorDeltaX, double cursorDeltaY) {
         if (!viewActive || !config.isFreeMoveEnabled() || transitionActive) return;
 
-        freeYaw += (float) (cursorDeltaX * 0.15);
+        // 偏航角每次累加后归一化到 [-180,180)：不归一的话长时间自由视角会把 freeYaw 累加到很大，
+        // 一是 Math.toRadians 的精度随幅度下降，二是快照存进 JSON 的 Yaw 会显示成 4321.0 这类怪值。
+        freeYaw = MathHelper.wrapDegrees(freeYaw + (float) (cursorDeltaX * 0.15));
         freePitch += (float) (cursorDeltaY * 0.15);
         freePitch = Math.max(-90.0f, Math.min(90.0f, freePitch));
     }
@@ -278,14 +320,15 @@ public class QuickViewManager {
 
     /** 按出现顺序收集所有非空分组名（主界面筛选下拉与编辑页分组候选共用）。 */
     public List<String> getGroups() {
-        List<String> groups = new ArrayList<>();
+        // LinkedHashSet：既去重（O(1) contains，原 List.contains 是 O(N²)）又保持首次出现顺序
+        Set<String> groups = new LinkedHashSet<>();
         for (Viewpoint vp : viewpoints) {
             String group = vp.getGroup();
-            if (!group.isEmpty() && !groups.contains(group)) {
+            if (!group.isEmpty()) {
                 groups.add(group);
             }
         }
-        return groups;
+        return new ArrayList<>(groups);
     }
 
     public String getCurrentDimension() {
@@ -296,16 +339,31 @@ public class QuickViewManager {
         return currentContext;
     }
 
-    public void loadViewpoints() {
+    /**
+     * 若当前世界的「上下文 / 维度」与已加载的不一致，则从磁盘重新加载，返回是否发生了重载。
+     *
+     * <p>换服务器/存档（上下文变化）或换维度都会改变存储文件路径，必须重载；
+     * 而<b>同一上下文内的本地增删改都已直接作用于内存列表并落盘</b>，无需再读盘 ——
+     * 这样既省掉每次编辑/删除/克隆的一次磁盘 IO，也消除了「重载换对象、旧引用成孤儿」的隐患。
+     */
+    public boolean ensureContextCurrent() {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientWorld world = client.world;
-        if (world == null) return;
+        if (world == null) return false;
 
         RegistryKey<World> dimKey = world.getRegistryKey();
         Identifier dimId = dimKey.getValue();
-        currentDimension = dimId.toString();
-        currentContext = resolveContext(client);
+        String dimension = dimId.toString();
+        String context = resolveContext(client);
+
+        if (dimension.equals(currentDimension) && context.equals(currentContext)) {
+            return false;
+        }
+
+        currentDimension = dimension;
+        currentContext = context;
         viewpoints = ViewpointStorage.load(currentContext, currentDimension);
+        return true;
     }
 
     public void saveViewpoints() {
@@ -366,17 +424,14 @@ public class QuickViewManager {
     }
 
     /**
-     * 按下标移除并落盘。
+     * 按对象身份移除单个书签并落盘。
      *
-     * <p>用途很窄但必要：<b>需要跨「列表重载」删除时只能用下标</b>。GUI 关闭编辑页会触发
-     * {@code refreshList()} → {@link #loadViewpoints()} 把 {@code viewpoints} 整表换成新对象，
-     * 此时旧的 {@code Viewpoint} 引用已不在列表里，按身份移除会静默失败；
-     * 而重载只换对象、不改变顺序，所以重载前求出的下标仍然指向同一书签。
-     * <p>同一时刻没有重载的场合（勾选批量删除）请用 {@link #removeViewpoints(List)}。
+     * <p>{@code Viewpoint} 未覆写 {@code equals}，所以列表移除天然是身份语义；调用方须保证传入的对象
+     * 仍在当前列表里（编辑页直接持有引用，刷新列表时上下文未变、不会换对象）。
+     * <p>批量删除请用 {@link #removeViewpoints(List)}（一次落盘）。
      */
-    public void removeViewpoint(int index) {
-        if (index >= 0 && index < viewpoints.size()) {
-            viewpoints.remove(index);
+    public void removeViewpoint(Viewpoint vp) {
+        if (vp != null && viewpoints.remove(vp)) {
             saveViewpoints();
         }
     }
@@ -395,31 +450,41 @@ public class QuickViewManager {
     }
 
     /**
-     * 克隆书签：复制全部字段（含分组），插入到原书签之后并落盘，返回克隆书签的下标；失败返回 -1。
+     * 克隆书签：复制全部字段（含分组），插入到原书签之后并落盘，返回克隆出的新书签；失败返回 {@code null}。
      * <p>克隆名由调用方生成（语言文件里的「%s 副本」）；{@code indexOf} 是身份语义
-     * （{@code Viewpoint} 未覆写 equals），传入的对象必须还在当前列表里，
-     * 否则静默失败（与按身份删除同一陷阱）。
-     * <p>返回下标而不是对象引用，是因为 GUI 关闭编辑页会触发
-     * {@code refreshList()} → {@link #loadViewpoints()} 整表换新对象；重载只换对象、
-     * 不改顺序，所以这个下标在重载后仍指向克隆出来的书签。
+     * （{@code Viewpoint} 未覆写 equals），传入的对象必须还在当前列表里。
      */
-    public int cloneViewpointAfter(Viewpoint original, String cloneName) {
-        if (original == null) return -1;
+    public Viewpoint cloneViewpointAfter(Viewpoint original, String cloneName) {
+        if (original == null) return null;
         int idx = viewpoints.indexOf(original);
-        if (idx < 0) return -1;
+        if (idx < 0) return null;
         Viewpoint copy = new Viewpoint(cloneName, original.getDimension(),
                 original.getX(), original.getY(), original.getZ(),
                 original.getYaw(), original.getPitch());
         copy.setGroup(original.getGroup());
         viewpoints.add(idx + 1, copy);
         saveViewpoints();
-        return idx + 1;
+        return copy;
     }
 
     public void switchToViewpoint(Viewpoint vp) {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientPlayerEntity player = client.player;
         if (player == null) return;
+
+        // 选了 Tweakeroo 实现：把相机整个交给它（它自己管移动、输入与视角恢复）
+        if (config.isUseTweakerooFreecam() && TweakerooFreecam.isAvailable()) {
+            if (viewActive) {
+                // 从自己的自由视角切过去时先退出自带实现，别让两套相机同时生效
+                restore();
+            }
+            if (TweakerooFreecam.enableAt(vp)) {
+                tweakerooViewActive = true;
+                activeViewpoint = vp;
+                return;
+            }
+            // 它没接住（世界未就绪 / API 不匹配）→ 继续走下面的自带实现
+        }
 
         // 必须在 viewActive 置位前取值：若已经是自由视角（例如在菜单里又点了另一个书签），
         // options 里的视角此时已被强制成 FIRST_PERSON，再存一次会把玩家真正的原始视角
@@ -473,14 +538,14 @@ public class QuickViewManager {
             freeX = startX;
             freeY = startY;
             freeZ = startZ;
-            freeYaw = startYaw;
+            freeYaw = MathHelper.wrapDegrees(startYaw);
             freePitch = startPitch;
         } else {
             transitionActive = false;
             freeX = targetX;
             freeY = targetY;
             freeZ = targetZ;
-            freeYaw = targetYaw;
+            freeYaw = MathHelper.wrapDegrees(targetYaw);
             freePitch = targetPitch;
         }
 
@@ -509,7 +574,7 @@ public class QuickViewManager {
         freeX = fromX + (targetX - fromX) * eased;
         freeY = fromY + (targetY - fromY) * eased;
         freeZ = fromZ + (targetZ - fromZ) * eased;
-        freeYaw = fromYaw + shortestAngleDelta(fromYaw, targetYaw) * (float) eased;
+        freeYaw = MathHelper.wrapDegrees(fromYaw + Angles.shortestDelta(fromYaw, targetYaw) * (float) eased);
         freePitch = fromPitch + (targetPitch - fromPitch) * (float) eased;
 
         prevX = freeX;
@@ -518,23 +583,19 @@ public class QuickViewManager {
 
         if (t >= 1.0) {
             transitionActive = false;
-            freeYaw = targetYaw;
+            freeYaw = MathHelper.wrapDegrees(targetYaw);
             freePitch = targetPitch;
         }
     }
 
-    /** 两个偏航角之间的最短角度差，返回 [-180, 180)，避免转身时绕远路。 */
-    private static float shortestAngleDelta(float from, float to) {
-        float delta = (to - from) % 360.0f;
-        if (delta >= 180.0f) {
-            delta -= 360.0f;
-        } else if (delta < -180.0f) {
-            delta += 360.0f;
-        }
-        return delta;
-    }
-
     public void restore() {
+        // Tweakeroo 接管中：关掉它的自由相机即可（视角恢复、相机复位都由它自己做）
+        if (tweakerooViewActive) {
+            TweakerooFreecam.disable();
+            tweakerooViewActive = false;
+            activeViewpoint = null;
+            return;
+        }
         MinecraftClient client = MinecraftClient.getInstance();
         if (savedPerspective != null) {
             client.options.setPerspective(savedPerspective);
@@ -587,6 +648,11 @@ public class QuickViewManager {
      */
     public void clearViewState() {
         MinecraftClient client = MinecraftClient.getInstance();
+        // 换世界时把可能残留的 Tweakeroo 自由相机也收掉（它自己也会在进世界时关，这里是兜底）
+        if (tweakerooViewActive) {
+            TweakerooFreecam.disable();
+            tweakerooViewActive = false;
+        }
         if (savedPerspective != null) {
             client.options.setPerspective(savedPerspective);
             savedPerspective = null;

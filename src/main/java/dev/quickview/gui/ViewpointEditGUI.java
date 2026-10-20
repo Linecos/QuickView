@@ -81,10 +81,22 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     /** 删除按钮：红色垃圾桶图标（无独立文案，配合主界面的二次确认使用）。 */
     private final WButton deleteBtn = new WButton(new TrashIcon())
             .setOnClick(this::requestDelete);
-    /** 克隆按钮：复制当前书签为新书签（克隆后直接切到编辑副本）。 */
+    /** 克隆按钮：复制当前书签为新书签（克隆后直接切到编辑副本）。仅「编辑已有书签」时显示。 */
     private final WButton cloneBtn = new WButton(Text.translatable("quickview.gui.edit.clone"))
             .setOnClick(this::requestClone);
+    /**
+     * 新建模式底部的两个按钮：<b>保存</b>（关闭面板，closeCallback 负责落盘 + 刷新）与
+     * <b>取消</b>（丢弃刚建的草稿，不留下空书签）。编辑模式下不显示这两个 ——
+     * 编辑面板的语义是「关了就等于保存了」，没有单独提交步骤。
+     */
+    private final WButton saveBtn = new WButton(Text.translatable("quickview.gui.edit.save"))
+            .setOnClick(this::requestSave);
+    private final WButton cancelBtn = new WButton(Text.translatable("quickview.gui.confirm.cancel"))
+            .setOnClick(this::requestCancel);
     private final QuickViewManager manager = QuickViewManager.getInstance();
+
+    /** 是否处于「新建」模式：+ 按钮建好空书签后打开的面板（底部是取消/保存，不是复制）。 */
+    private final boolean creating;
 
     /** 展开中的分组候选列表；null 表示收起。 */
     private WGridPanel groupList;
@@ -97,9 +109,39 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private Runnable onDeleteRequested;
     /** 由主界面注入：点「复制为新书签」时回调（主界面负责克隆、关编辑页并切到编辑副本）。 */
     private Runnable onCloneRequested;
+    /** 由主界面注入：点「保存」时回调（主界面负责关闭面板；落盘由关闭时的 closeCallback 做）。 */
+    private Runnable onSaveRequested;
+    /** 由主界面注入：点「取消」时回调（主界面负责删掉刚建的草稿并关闭面板）。 */
+    private Runnable onCancelRequested;
+    /** 「取消新建」后置位：关闭时不再 {@link #saveData()}（否则会把被丢弃的草稿又写回盘）。 */
+    private boolean discarded;
 
-    public ViewpointEditGUI(Viewpoint viewpoint) {
+    /**
+     * 打开面板时的原始值快照。<b>编辑是即时改模型的</b>（失焦就写回 + 落盘），
+     * 所以「取消」必须能把这次编辑整体回滚，否则「取消」二字没有意义。
+     * 新建模式不记录（草稿会被主界面整个删掉，没有"原来的值"可言）。
+     */
+    private final String originalName;
+    private final String originalGroup;
+    private final double originalX;
+    private final double originalY;
+    private final double originalZ;
+    private final float originalYaw;
+    private final float originalPitch;
+
+    /**
+     * @param creating true = 新建模式（底部「取消 / 保存」）；false = 编辑已有书签（底部「取消 / 保存 / 复制为新书签」）
+     */
+    public ViewpointEditGUI(Viewpoint viewpoint, boolean creating) {
         this.viewpoint = viewpoint;
+        this.creating = creating;
+        this.originalName = viewpoint.getName();
+        this.originalGroup = viewpoint.getGroup();
+        this.originalX = viewpoint.getX();
+        this.originalY = viewpoint.getY();
+        this.originalZ = viewpoint.getZ();
+        this.originalYaw = viewpoint.getYaw();
+        this.originalPitch = viewpoint.getPitch();
         this.nameField.setText(viewpoint.getName());
         this.nameField.setFocusLostCallback(s -> {
             // 空名不覆盖（与 saveData 同一规则），并把保留的旧名回填进输入框，避免框里是空、模型里是旧名
@@ -136,6 +178,20 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         return this;
     }
 
+    /** 注入「保存」回调（仅新建模式用）。 */
+    public ViewpointEditGUI setOnSaveRequested(Runnable onSaveRequested) {
+        this.onSaveRequested = onSaveRequested;
+        return this;
+    }
+
+    /** 注入「取消」回调（仅新建模式用）。 */
+    public ViewpointEditGUI setOnCancelRequested(Runnable onCancelRequested) {
+        this.onCancelRequested = onCancelRequested;
+        return this;
+    }
+
+    /** 「取消」后的收尾由 {@link #requestCancel()} 自己处理（回滚 + 置 discarded）。 */
+
     private void requestDelete() {
         if (onDeleteRequested != null) {
             onDeleteRequested.run();
@@ -146,6 +202,42 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         if (onCloneRequested != null) {
             onCloneRequested.run();
         }
+    }
+
+    private void requestSave() {
+        if (onSaveRequested != null) {
+            onSaveRequested.run();
+        }
+    }
+
+    /**
+     * 「取消」：编辑模式先回滚到打开面板时的快照（编辑期间已经即时落过盘，所以回滚也要写盘），
+     * 再交给主界面关面板；新建模式直接丢弃草稿（主界面负责删掉那条书签）。
+     */
+    private void requestCancel() {
+        restoreOriginal();
+        discarded = true;             // 关闭时别再用输入框内容把模型覆盖回去
+        if (!creating) {
+            // 回滚也要落盘：编辑期间每处改动都已经即时写过盘了
+            manager.saveViewpoints();
+        }
+        if (onCancelRequested != null) {
+            onCancelRequested.run();
+        }
+    }
+
+    /** 把模型恢复成打开面板时的值（新建模式没有"原来的值"，空实现）。 */
+    private void restoreOriginal() {
+        if (creating) {
+            return;
+        }
+        viewpoint.setName(originalName);
+        viewpoint.setGroup(originalGroup);
+        viewpoint.setX(originalX);
+        viewpoint.setY(originalY);
+        viewpoint.setZ(originalZ);
+        viewpoint.setYaw(originalYaw);
+        viewpoint.setPitch(originalPitch);
     }
 
     /**
@@ -366,14 +458,26 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         this.root.add(this.setCurrentBtn, 25, 17, 19, 4);
         this.root.add(this.deleteBtn, 45, 17, 4, 4);
 
-        // 克隆：独占一行、与上方输入框同宽（240px），复制后直接切到编辑副本
-        this.root.add(this.cloneBtn, 1, 22, 48, 4);
+        // 底部动作行（y=22 格 = 110..130px）
+        //   新建：取消 | 保存（各占半行）
+        //   编辑：取消 | 保存 | 复制（三等分，文案都是 2 个字）
+        if (creating) {
+            this.root.add(this.cancelBtn, 1, 22, 23, 4);    // 5..120px
+            this.root.add(this.saveBtn, 25, 22, 24, 4);     // 125..245px
+        } else {
+            this.root.add(this.cancelBtn, 1, 22, 15, 4);    // 5..80px
+            this.root.add(this.saveBtn, 17, 22, 15, 4);     // 85..160px
+            this.root.add(this.cloneBtn, 33, 22, 16, 4);    // 165..245px
+        }
 
         this.root.validate(this);
     }
 
     /** 关闭编辑页时调用：把全部字段写回模型并统一落盘一次。 */
     public void saveData() {
+        if (discarded) {
+            return;   // 已点「取消」：模型已回滚/草稿已删，别再用输入框内容覆盖
+        }
         // 名字为空时不覆盖旧名：用户可能只是随手清了输入框，不该把书签变成无名
         String name = nameField.getText();
         if (!name.isEmpty()) {

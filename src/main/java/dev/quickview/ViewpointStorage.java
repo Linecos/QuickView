@@ -14,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 public class ViewpointStorage {
     /** 文件格式版本号。字段/语义变更时递增，load 侧可据此做迁移。 */
@@ -23,9 +22,6 @@ public class ViewpointStorage {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path BASE_DIR = FabricLoader.getInstance().getGameDir().resolve("quickview");
     private static final Type LIST_TYPE = new TypeToken<List<Viewpoint>>() {}.getType();
-    /** Windows 非法字符与控制符 → 下划线；尾部空格/点（Windows 会吞掉）也会被处理。 */
-    private static final Pattern ILLEGAL_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\p{Cntrl}]");
-    private static final Pattern TRAILING_DOTS_SPACES = Pattern.compile("[. ]+$");
 
     /** 磁盘上的文件结构：{ "version": 1, "viewpoints": [ ... ] }。 */
     private static final class StorageFile {
@@ -34,7 +30,8 @@ public class ViewpointStorage {
     }
 
     public static Path getStoragePath(String context, String dimension) {
-        return BASE_DIR.resolve(sanitizeName(context)).resolve(sanitizeName(dimension) + ".json");
+        // 路径名清洗逻辑移至 StorageNames（纯函数，便于单测）
+        return BASE_DIR.resolve(StorageNames.sanitize(context)).resolve(StorageNames.sanitize(dimension) + ".json");
     }
 
     public static List<Viewpoint> load(String context, String dimension) {
@@ -78,30 +75,5 @@ public class ViewpointStorage {
         // 原子写入（临时文件 + 原子替换）统一在 JsonFile 里处理
         JsonFile.write(getStoragePath(context, dimension), file, GSON,
                 String.format("viewpoints for context '%s' dimension '%s'", context, dimension));
-    }
-
-    private static String sanitizeName(String name) {
-        if (name == null) {
-            return "unknown";
-        }
-        String safe = ILLEGAL_CHARS.matcher(name).replaceAll("_").trim();
-        safe = TRAILING_DOTS_SPACES.matcher(safe).replaceAll("");
-        if (safe.isEmpty() || safe.equals(".") || safe.equals("..")) {
-            safe = "unknown";
-        }
-        if (isReservedWindowsName(safe)) {
-            safe = "_" + safe;
-        }
-        return safe;
-    }
-
-    private static boolean isReservedWindowsName(String name) {
-        int dot = name.indexOf('.');
-        String base = dot >= 0 ? name.substring(0, dot) : name;
-        String upper = base.toUpperCase();
-        if (upper.equals("CON") || upper.equals("PRN") || upper.equals("AUX") || upper.equals("NUL")) {
-            return true;
-        }
-        return upper.matches("COM[1-9]") || upper.matches("LPT[1-9]");
     }
 }

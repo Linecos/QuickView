@@ -15,7 +15,7 @@ public abstract class HeldItemRendererMixin {
 
     @Inject(method = "renderItem(FLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;Lnet/minecraft/client/network/ClientPlayerEntity;I)V", at = @At("HEAD"), cancellable = true)
     private void quickview$hideHeldItem(float tickDelta, MatrixStack matrices, OrderedRenderCommandQueue commandQueue, ClientPlayerEntity player, int light, CallbackInfo ci) {
-        if (QuickViewManager.getInstance().isViewActive()) {
+        if (QuickViewManager.getInstance().isNativeViewActive()) {
             ci.cancel();
         }
     }

@@ -27,7 +27,7 @@ public abstract class CameraMixin {
     @Inject(method = "update", at = @At("TAIL"))
     private void quickview$overrideViewpoint(World world, Entity entity, boolean thirdPerson, boolean inverseView, float tickProgress, CallbackInfo ci) {
         QuickViewManager manager = QuickViewManager.getInstance();
-        if (!manager.isViewActive()) return;
+        if (!manager.isNativeViewActive()) return;
 
         // 平滑过渡：先把插值推进到当前时刻，再取坐标
         manager.updateTransition();

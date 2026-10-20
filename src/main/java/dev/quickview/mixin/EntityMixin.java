@@ -14,7 +14,7 @@ public abstract class EntityMixin {
     @Inject(method = "changeLookDirection", at = @At("HEAD"), cancellable = true)
     private void quickview$cancelLookChange(double cursorDeltaX, double cursorDeltaY, CallbackInfo ci) {
         QuickViewManager manager = QuickViewManager.getInstance();
-        if (!manager.isViewActive()) return;
+        if (!manager.isNativeViewActive()) return;
 
         Entity self = (Entity) (Object) this;
         MinecraftClient client = MinecraftClient.getInstance();

@@ -56,8 +56,9 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 });
         tabGeneral.setEnabled(false);
 
-        // 内容卡 41 格（205px）：5 个功能行从 y=4 起、行距 40、最低到 200px；root 250 让底部留白 10px。
-        // 行距从 44 收到 40 是为了在第 5 行之后仍不超过 250px（GUI Scale 5 下更高的面板会顶出屏幕）
+        // 内容卡 41 格（205px）：6 个功能行从 y=4 起、行距 33、行高 32，最低到 201px；
+        // root 250 让底部留白 10px。行距从 40 收到 33 是为了第 6 行之后仍不超过 250px
+        // （GUI Scale 5 下更高的面板会顶出屏幕）
         root.setSize(350, 250);
         root.add(tabGeneral, 1, 1, 14, 4);
         root.add(tabKeybinds, 17, 1, 14, 4);
@@ -72,28 +73,40 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
 
         panel.add(createFeatureRow("quickview.gui.settings.option.quick_add",
                 manager.isQuickAddEnabled(), on -> manager.toggleQuickAdd(),
-                QuickViewKeybindings.getSaveKey()), 5, 4, 330, 36);
+                QuickViewKeybindings.getSaveKey()), 5, 4, 330, 32);
         panel.add(createFeatureRow("quickview.gui.settings.option.free_move",
                 manager.isFreeMoveEnabled(), on -> manager.toggleFreeMove(),
-                QuickViewKeybindings.getToggleMoveKey()), 5, 44, 330, 36);
+                QuickViewKeybindings.getToggleMoveKey()), 5, 37, 330, 32);
         panel.add(createFeatureRow("quickview.gui.settings.option.freecam",
-                manager.isPreferFreecam(), on -> manager.togglePreferFreecam(), null), 5, 84, 330, 36);
+                manager.isPreferFreecam(), on -> manager.togglePreferFreecam(), null), 5, 70, 330, 32);
         panel.add(createFeatureRow("quickview.gui.settings.option.smooth_transition",
-                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition(), null), 5, 124, 330, 36);
+                manager.isSmoothTransitionEnabled(), on -> manager.toggleSmoothTransition(), null), 5, 103, 330, 32);
         panel.add(createFeatureRow("quickview.gui.settings.option.restore_on_damage",
-                manager.isRestoreOnDamage(), on -> manager.toggleRestoreOnDamage(), null), 5, 164, 330, 36);
+                manager.isRestoreOnDamage(), on -> manager.toggleRestoreOnDamage(), null), 5, 136, 330, 32);
+        panel.add(createFeatureRow("quickview.gui.settings.option.tweakeroo_freecam",
+                        manager.isTweakerooFreecamSelected(), on -> manager.toggleUseTweakerooFreecam(), null,
+                        manager.isTweakerooFreecamAvailable()), 5, 169, 330, 32);
 
         return panel;
     }
 
     private WGridPanel createFeatureRow(String key, boolean initialState, Consumer<Boolean> handler,
                                         KeyBinding descKeyBinding) {
+        return createFeatureRow(key, initialState, handler, descKeyBinding, true);
+    }
+
+    /**
+     * @param usable false = 该项当前不可用（例如没装 Tweakeroo）：开关置灰、名称与说明变暗，
+     *               但仍占位显示，让用户知道有这个选项以及为什么不能用
+     */
+    private WGridPanel createFeatureRow(String key, boolean initialState, Consumer<Boolean> handler,
+                                        KeyBinding descKeyBinding, boolean usable) {
         WGridPanel row = new WGridPanel(1);
         row.setBackgroundPainter(ROW_BG);
 
         WLabel nameLabel = new WLabel(Text.translatable(key), 0xFFFFFFFF)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
-        row.add(nameLabel, 15, 2, 270, 16);
+        row.add(nameLabel, 15, 2, 270, 15);
 
         // 说明里涉及快捷键的部分动态取当前绑定（改键后描述跟着变），不再写死 N/G
         Text desc = descKeyBinding != null
@@ -101,18 +114,30 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
                 : Text.translatable(key + ".desc");
         WLabel descLabel = new WLabel(desc, 0xFFAAAAAA)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
-        row.add(descLabel, 15, 19, 270, 14);
+        row.add(descLabel, 15, 17, 270, 13);
         if (descKeyBinding != null) {
             // 按键参数创建时捕获（见 keyDescRefreshers 注释）：登记刷新器，改键后用新绑定重建文字
             keyDescRefreshers.add(() -> descLabel.setText(
                     Text.translatable(key + ".desc", descKeyBinding.getBoundKeyLocalizedText())));
         }
 
+        // WToggleButton 没有 setEnabled：不可用时自己拦截点击并回滚视觉状态
         WToggleButton toggle = new WToggleButton()
-                .setColor(0xFFFFFFFF, 0xFFFFFFFF)
-                .setOnToggle(handler);
+                .setColor(usable ? 0xFFFFFFFF : 0xFF888888, usable ? 0xFFFFFFFF : 0xFF555555);
         toggle.setToggle(initialState);
-        row.add(toggle, 295, 9, 18, 18);
+        toggle.setOnToggle(value -> {
+            if (usable) {
+                handler.accept(value);
+            } else {
+                toggle.setToggle(initialState);
+            }
+        });
+        if (!usable) {
+            // 不可用的项：名称与说明一起变暗，避免看起来能点
+            nameLabel.setColor(0xFF777777);
+            descLabel.setColor(0xFF666666);
+        }
+        row.add(toggle, 295, 7, 18, 18);
 
         return row;
     }
