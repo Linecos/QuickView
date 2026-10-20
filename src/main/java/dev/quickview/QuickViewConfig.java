@@ -33,6 +33,11 @@ public final class QuickViewConfig {
     private int smoothTransitionMillis = DEFAULT_TRANSITION_MILLIS;
     /** 自由视角下受到伤害时是否立即恢复本体视角。 */
     private boolean restoreOnDamage = true;
+    /**
+     * 切换视角时是否改用 Tweakeroo 的「灵魂出窍」实现（默认<b>关</b>：没装 Tweakeroo 的人不受影响，
+     * 装了的人可以自己选更顺手的那个）。
+     */
+    private boolean useTweakerooFreecam = false;
 
     public static QuickViewConfig load() {
         if (!Files.exists(FILE)) {
@@ -105,5 +110,13 @@ public final class QuickViewConfig {
 
     public void setRestoreOnDamage(boolean restoreOnDamage) {
         this.restoreOnDamage = restoreOnDamage;
+    }
+
+    public boolean isUseTweakerooFreecam() {
+        return useTweakerooFreecam;
+    }
+
+    public void setUseTweakerooFreecam(boolean useTweakerooFreecam) {
+        this.useTweakerooFreecam = useTweakerooFreecam;
     }
 }

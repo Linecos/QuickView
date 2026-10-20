@@ -120,7 +120,12 @@ public class QuickViewKeybindings {
 
             if (toggleMoveKey.wasPressed()) {
                 manager.toggleFreeMove();
-                if (manager.isViewActive()) {
+                if (manager.isUsingTweakerooFreecam()) {
+                    // 这个开关只作用于自带的自由视角；Tweakeroo 模式下移动由 Tweakeroo 自己管，
+                    // 提示「已开启/已关闭」会误导，这里说明实际情况
+                    client.player.sendMessage(
+                            Text.translatable("quickview.message.tweakerooControlsMovement"), true);
+                } else if (manager.isViewActive()) {
                     String key = manager.isFreeMoveEnabled()
                             ? "quickview.message.moveEnabled"
                             : "quickview.message.moveDisabled";

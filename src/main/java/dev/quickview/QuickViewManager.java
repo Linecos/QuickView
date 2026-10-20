@@ -33,6 +33,11 @@ public class QuickViewManager {
     private String currentContext = "";
     private String currentDimension = "";
     private boolean viewActive = false;
+    /**
+     * 视角由 Tweakeroo 的自由相机接管中（{@link #viewActive} 保持 false —— 那套状态、混入和
+     * 自带自由移动都不参与，QuickView 只负责把相机摆到书签位置）。
+     */
+    private boolean tweakerooViewActive = false;
 
     /** 全局设置（config/quickview.json），改动即落盘。 */
     private QuickViewConfig config = new QuickViewConfig();
@@ -88,7 +93,39 @@ public class QuickViewManager {
     }
 
     public boolean isViewActive() {
+        // 使用 Tweakeroo 实现时 QuickView 自己的 viewActive 始终为 false（不接管相机），
+        // 但对外的「有没有在视角里」必须是 true —— B 键恢复、受伤恢复、设置页提示都靠它。
+        // ⚠️ 混入层（CameraMixin 等）**必须用 isNativeViewActive()**：它们要的是「自带相机是否在接管」，
+        // 用这个合并值会把 Tweakeroo 的相机覆盖到 freeX/Y/Z（此时全为 0）—— 表现就是切过去一片空白
+        return viewActive || tweakerooViewActive;
+    }
+
+    /**
+     * QuickView <b>自带的</b>自由视角是否在接管相机。
+     * <p>只给混入层与自带实现的内部逻辑用；UI/按键请用 {@link #isViewActive()}。
+     */
+    public boolean isNativeViewActive() {
         return viewActive;
+    }
+
+    /** 当前这次视角是不是交给 Tweakeroo 的自由相机在管（用于按键提示措辞）。 */
+    public boolean isUsingTweakerooFreecam() {
+        return tweakerooViewActive;
+    }
+
+    /** 设置项是否选了 Tweakeroo 实现（不代表当前真的接通了）。 */
+    public boolean isTweakerooFreecamSelected() {
+        return config.isUseTweakerooFreecam();
+    }
+
+    /** Tweakeroo 是否可用（装了且反射签名对得上）；设置页据此禁用开关。 */
+    public boolean isTweakerooFreecamAvailable() {
+        return TweakerooFreecam.isAvailable();
+    }
+
+    public void toggleUseTweakerooFreecam() {
+        config.setUseTweakerooFreecam(!config.isUseTweakerooFreecam());
+        config.save();
     }
 
     public boolean isQuickAddEnabled() {
@@ -204,7 +241,8 @@ public class QuickViewManager {
         lastHealth = health;
         lastAbsorption = absorption;
 
-        if (damaged && viewActive && config.isRestoreOnDamage()) {
+        // 用 isViewActive()：Tweakeroo 接管时 viewActive 是 false，但受伤同样要能恢复
+        if (damaged && isViewActive() && config.isRestoreOnDamage()) {
             restore();
             return true;
         }
@@ -434,6 +472,20 @@ public class QuickViewManager {
         ClientPlayerEntity player = client.player;
         if (player == null) return;
 
+        // 选了 Tweakeroo 实现：把相机整个交给它（它自己管移动、输入与视角恢复）
+        if (config.isUseTweakerooFreecam() && TweakerooFreecam.isAvailable()) {
+            if (viewActive) {
+                // 从自己的自由视角切过去时先退出自带实现，别让两套相机同时生效
+                restore();
+            }
+            if (TweakerooFreecam.enableAt(vp)) {
+                tweakerooViewActive = true;
+                activeViewpoint = vp;
+                return;
+            }
+            // 它没接住（世界未就绪 / API 不匹配）→ 继续走下面的自带实现
+        }
+
         // 必须在 viewActive 置位前取值：若已经是自由视角（例如在菜单里又点了另一个书签），
         // options 里的视角此时已被强制成 FIRST_PERSON，再存一次会把玩家真正的原始视角
         // 覆盖掉，恢复时就回不去了。
@@ -537,6 +589,13 @@ public class QuickViewManager {
     }
 
     public void restore() {
+        // Tweakeroo 接管中：关掉它的自由相机即可（视角恢复、相机复位都由它自己做）
+        if (tweakerooViewActive) {
+            TweakerooFreecam.disable();
+            tweakerooViewActive = false;
+            activeViewpoint = null;
+            return;
+        }
         MinecraftClient client = MinecraftClient.getInstance();
         if (savedPerspective != null) {
             client.options.setPerspective(savedPerspective);
@@ -589,6 +648,11 @@ public class QuickViewManager {
      */
     public void clearViewState() {
         MinecraftClient client = MinecraftClient.getInstance();
+        // 换世界时把可能残留的 Tweakeroo 自由相机也收掉（它自己也会在进世界时关，这里是兜底）
+        if (tweakerooViewActive) {
+            TweakerooFreecam.disable();
+            tweakerooViewActive = false;
+        }
         if (savedPerspective != null) {
             client.options.setPerspective(savedPerspective);
             savedPerspective = null;
