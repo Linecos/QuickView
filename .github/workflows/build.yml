@@ -34,6 +34,13 @@ jobs:
       - name: 赋予 gradlew 可执行权限
         run: chmod +x ./gradlew
 
+      # 默认的腾讯镜像从海外访问很慢，曾出现下载到 70% 被 Connection reset 卡死 5 分钟；
+      # Runner 有 GitHub 缓存且到官方源很快，这里只改 CI 用的副本，不影响本地构建。
+      - name: 切换 Gradle 发行版下载源
+        run: |
+          sed -i 's#mirrors.cloud.tencent.com/gradle#services.gradle.org/distributions#' gradle/wrapper/gradle-wrapper.properties
+          grep distributionUrl gradle/wrapper/gradle-wrapper.properties
+
       - name: 构建
         run: ./gradlew build --console=plain --no-daemon
 
