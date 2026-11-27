@@ -7,7 +7,7 @@
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1%20~%2026.3-62B47A?style=flat-square)
 ![Loader](https://img.shields.io/badge/Loader-Fabric-DBB69B?style=flat-square)
 ![Side](https://img.shields.io/badge/Side-Client--only-4C8DFF?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.0.4-8957E5?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.0.5-8957E5?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
 ---
@@ -222,6 +222,16 @@ src/main/java/dev/quickview/
   没有这个文件时才回退到自动生成的 commit 列表
 
 ## 更新日志
+
+### v1.0.5
+
+**多版本支持**
+
+- 一个代码库同时构建 **Minecraft 1.21.1 ~ 26.3**，共 8 个节点：1.21.1 / 1.21.5 / 1.21.8 / 1.21.10 / 1.21.11 / 26.1 / 26.2 / 26.3
+- 每个节点产出独立 jar（`quickview-1.0.5-mc<mc>.jar`），按游戏版本选择；1.21.8 的 jar 同时覆盖 1.21.6/1.21.7，1.21.10 的 jar 同时覆盖 1.21.9
+- 1.21.x 使用 Java 21 + `fabric-loom-remap`；26.x 使用 Java 25 + 无混淆 `fabric-loom`，26.3 适配 SDL 输入与第一人称手部渲染
+- 构建切换为 Stonecutter 0.9.6；CI 改为 JDK 25 并一次性构建/收集全部版本
+- 书签与配置文件格式未变，旧版配置可直接沿用
 
 ### v1.0.4
 
