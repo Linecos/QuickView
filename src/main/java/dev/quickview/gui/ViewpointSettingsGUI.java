@@ -11,12 +11,11 @@ import io.github.cottonmc.cotton.gui.widget.WLabel;
 import io.github.cottonmc.cotton.gui.widget.WToggleButton;
 import io.github.cottonmc.cotton.gui.widget.data.HorizontalAlignment;
 import io.github.cottonmc.cotton.gui.widget.data.VerticalAlignment;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.network.chat.Component;
 
 public class ViewpointSettingsGUI extends LightweightGuiDescription {
     private static final BackgroundPainter ROW_BG = BackgroundPainter.createColorful(0x80000000);
@@ -42,13 +41,13 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         content.add(shortcutPanel);
         content.setSelectedIndex(0);
 
-        tabGeneral = new WButton(Text.translatable("quickview.gui.settings.tab.general"))
+        tabGeneral = new WButton(Component.translatable("quickview.gui.settings.tab.general"))
                 .setOnClick(() -> {
                     content.setSelectedIndex(0);
                     tabGeneral.setEnabled(false);
                     tabKeybinds.setEnabled(true);
                 });
-        tabKeybinds = new WButton(Text.translatable("quickview.gui.settings.tab.keybinds"))
+        tabKeybinds = new WButton(Component.translatable("quickview.gui.settings.tab.keybinds"))
                 .setOnClick(() -> {
                     content.setSelectedIndex(1);
                     tabKeybinds.setEnabled(false);
@@ -91,7 +90,7 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
     }
 
     private WGridPanel createFeatureRow(String key, boolean initialState, Consumer<Boolean> handler,
-                                        KeyBinding descKeyBinding) {
+                                        KeyMapping descKeyBinding) {
         return createFeatureRow(key, initialState, handler, descKeyBinding, true);
     }
 
@@ -100,25 +99,25 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
      *               但仍占位显示，让用户知道有这个选项以及为什么不能用
      */
     private WGridPanel createFeatureRow(String key, boolean initialState, Consumer<Boolean> handler,
-                                        KeyBinding descKeyBinding, boolean usable) {
+                                        KeyMapping descKeyBinding, boolean usable) {
         WGridPanel row = new WGridPanel(1);
         row.setBackgroundPainter(ROW_BG);
 
-        WLabel nameLabel = new WLabel(Text.translatable(key), 0xFFFFFFFF)
+        WLabel nameLabel = new WLabel(Component.translatable(key), 0xFFFFFFFF)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
         row.add(nameLabel, 15, 2, 270, 15);
 
         // 说明里涉及快捷键的部分动态取当前绑定（改键后描述跟着变），不再写死 N/G
-        Text desc = descKeyBinding != null
-                ? Text.translatable(key + ".desc", descKeyBinding.getBoundKeyLocalizedText())
-                : Text.translatable(key + ".desc");
+        Component desc = descKeyBinding != null
+                ? Component.translatable(key + ".desc", descKeyBinding.getTranslatedKeyMessage())
+                : Component.translatable(key + ".desc");
         WLabel descLabel = new WLabel(desc, 0xFFAAAAAA)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
         row.add(descLabel, 15, 17, 270, 13);
         if (descKeyBinding != null) {
             // 按键参数创建时捕获（见 keyDescRefreshers 注释）：登记刷新器，改键后用新绑定重建文字
             keyDescRefreshers.add(() -> descLabel.setText(
-                    Text.translatable(key + ".desc", descKeyBinding.getBoundKeyLocalizedText())));
+                    Component.translatable(key + ".desc", descKeyBinding.getTranslatedKeyMessage())));
         }
 
         // WToggleButton 没有 setEnabled：不可用时自己拦截点击并回滚视觉状态
@@ -145,7 +144,7 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
     private WGridPanel createShortcutPanel() {
         WGridPanel panel = new WGridPanel(1);
 
-        List<KeyBinding> bindings = QuickViewKeybindings.getAll();
+        List<KeyMapping> bindings = QuickViewKeybindings.getAll();
         for (int i = 0; i < bindings.size(); i++) {
             panel.add(createKeybindingRow(bindings.get(i)), 5, 10 + i * 32, 330, 24);
         }
@@ -153,13 +152,13 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         return panel;
     }
 
-    private WGridPanel createKeybindingRow(KeyBinding kb) {
+    private WGridPanel createKeybindingRow(KeyMapping kb) {
         WGridPanel row = new WGridPanel(1);
         row.setBackgroundPainter(ROW_BG);
 
         int defaultKey = QuickViewKeybindings.getDefaultKey(kb);
 
-        WLabel nameLabel = new WLabel(Text.translatable(kb.getId()), 0xFFFFFFFF)
+        WLabel nameLabel = new WLabel(Component.translatable(kb.getName()), 0xFFFFFFFF)
                 .setHorizontalAlignment(HorizontalAlignment.LEFT)
                 .setVerticalAlignment(VerticalAlignment.CENTER);
         row.add(nameLabel, 15, 0, 180, 24);
@@ -167,7 +166,7 @@ public class ViewpointSettingsGUI extends LightweightGuiDescription {
         WKeyBindingButton keyBtn = new WKeyBindingButton(kb);
         row.add(keyBtn, 220, 2, 72, 20);
 
-        WButton resetBtn = new WButton(Text.translatable("quickview.gui.settings.key.reset"))
+        WButton resetBtn = new WButton(Component.translatable("quickview.gui.settings.key.reset"))
                 .setAlignment(HorizontalAlignment.CENTER)
                 .setOnClick(() -> keyBtn.resetToDefault(defaultKey));
         resetBtn.setEnabled(!keyBtn.isAtDefault());

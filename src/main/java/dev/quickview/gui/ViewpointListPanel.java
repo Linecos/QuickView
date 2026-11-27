@@ -5,9 +5,6 @@ import dev.quickview.mixin.IWWidget;
 import io.github.cottonmc.cotton.gui.client.ScreenDrawing;
 import io.github.cottonmc.cotton.gui.widget.WListPanel;
 import io.github.cottonmc.cotton.gui.widget.WTextField;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +12,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * 书签列表：网格布局 + 搜索过滤 + 拖拽排序。
@@ -364,7 +363,7 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
     // -------------------------------------------------------------------- 绘制
 
     @Override
-    public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
+    public void paint(GuiGraphics context, int x, int y, int mouseX, int mouseY) {
         // 指针在面板外时冻结鼠标坐标（HOVER_OFF_XY 同 ViewpointGUI，屏幕外值让 hover 判定为 false）：
         // 滚动列表的末行会超出面板下缘，仍留在 children 里，不冻结的话指针在面板下方
         // （模式开关行那一带）也会让它亮起来 —— 点不到但会亮，像 bug。
@@ -435,12 +434,12 @@ public class ViewpointListPanel<D> extends WListPanel<D, WViewpointEntry> implem
         if (text == null || text.isEmpty() || maxWidth <= 0) {
             return "";
         }
-        var textRenderer = MinecraftClient.getInstance().textRenderer;
-        if (textRenderer.getWidth(text) <= maxWidth) {
+        var textRenderer = Minecraft.getInstance().font;
+        if (textRenderer.width(text) <= maxWidth) {
             return text;
         }
         String ellipsis = "…";
-        return textRenderer.trimToWidth(text, Math.max(0, maxWidth - textRenderer.getWidth(ellipsis))) + ellipsis;
+        return textRenderer.plainSubstrByWidth(text, Math.max(0, maxWidth - textRenderer.width(ellipsis))) + ellipsis;
     }
 
     // -------------------------------------------------------------------- 布局

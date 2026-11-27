@@ -4,7 +4,7 @@
 
 > 视角书签 Mod —— 把相机机位存成书签，一键切过去，一键切回来。
 
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-62B47A?style=flat-square)
+![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1%20~%2026.3-62B47A?style=flat-square)
 ![Loader](https://img.shields.io/badge/Loader-Fabric-DBB69B?style=flat-square)
 ![Side](https://img.shields.io/badge/Side-Client--only-4C8DFF?style=flat-square)
 ![Version](https://img.shields.io/badge/Version-1.0.4-8957E5?style=flat-square)
@@ -46,19 +46,30 @@ QuickView 把「相机机位」变成可保存的书签：记录坐标 + 朝向 
 
 | 项目 | 版本 |
 |---|---|
-| Minecraft | 1.21.11 |
-| Fabric Loader | ≥ 0.18.3（LibGui 15.1.0 自身的要求） |
-| Fabric API | 必需 |
-| [LibGui](https://github.com/CottonMC/LibGui) | 15.1.0（`>=15.1.0 <16`） |
-| Java | 21+ |
+| Minecraft | 1.21.1 / 1.21.5 / 1.21.8 / 1.21.10 / 1.21.11 / 26.1 / 26.2 / 26.3 |
+| Fabric Loader | 1.21.x：≥ 0.18.3；26.x：≥ 0.20.1 |
+| Fabric API | 必需（版本随 Minecraft 版本变化） |
+| [LibGui](https://github.com/CottonMC/LibGui) | 必需（版本随 Minecraft 版本变化） |
+| Java | 1.21.x：21+；26.x：25+ |
 
-纯客户端 Mod：**不需要**安装在服务端。
+每个构建节点对应一个 jar，依赖版本见下表；jar 内的 `minecraft` 兼容范围可能比节点更宽（例如 1.21.8 的 jar 同时覆盖 1.21.6/1.21.7，1.21.10 的 jar 同时覆盖 1.21.9）。纯客户端 Mod：**不需要**安装在服务端。
+
+| Minecraft | Fabric API | LibGui | Java |
+|---|---|---|---|
+| 1.21.1 | 0.116.9+1.21.1 | 11.1.0+1.21 | 21 |
+| 1.21.5 | 0.128.2+1.21.5 | 13.1.0+1.21.5 | 21 |
+| 1.21.8 | 0.136.1+1.21.8 | 14.0.0+1.21.6 | 21 |
+| 1.21.10 | 0.138.4+1.21.10 | 15.0.0+1.21.9-rc1 | 21 |
+| 1.21.11 | 0.141.6+1.21.11 | 15.1.0+1.21.11 | 21 |
+| 26.1 | 0.154.0+26.1.2 | 16.0.1+26.1 | 25 |
+| 26.2 | 0.161.0+26.2 | 17.0.0+26.2 | 25 |
+| 26.3 | 0.161.0+26.3 | 18.0.1+26.3-rc-2 | 25 |
 
 ## 安装
 
-1. 安装 Fabric Loader（1.21.11）
-2. 把 [Fabric API](https://modrinth.com/mod/fabric-api) 与 [LibGui](https://github.com/CottonMC/LibGui) 放进 `mods/`
-3. 把 `quickview-<版本>.jar` 放进 `mods/`
+1. 安装 Fabric Loader（选择你要玩的 Minecraft 版本）
+2. 把对应版本的 [Fabric API](https://modrinth.com/mod/fabric-api) 与 [LibGui](https://github.com/CottonMC/LibGui) 放进 `mods/`
+3. 把文件名里带对应 Minecraft 版本的 `quickview-<版本>-mc<mc>.jar` 放进 `mods/`
 4. 启动游戏，按键设置在「选项 → 控制 → 按键绑定 → QuickView」
 
 ## 快速上手
@@ -153,21 +164,33 @@ QuickView 把「相机机位」变成可保存的书签：记录坐标 + 朝向 
 
 ## 从源码构建
 
-需要 JDK 21。
+项目使用 [Stonecutter](https://stonecutter.kikugie.dev/) 管理多版本源码。需要 **JDK 25**（Stonecutter 插件本身运行在 Gradle 的 JVM 上；1.21.x 的编译目标仍是 Java 21）。
 
 ```powershell
-.\gradlew build
+# 构建全部 8 个版本，并把 jar 收集到 build/libs/
+.\gradlew buildAndGather
+
+# 只构建某个版本
+.\gradlew :1.21.11:build
+.\gradlew :26.3:build
 ```
 
-产物在 `build/libs/`，命名随 git 分支自动切换：
+Stonecutter 节点：`1.21.1`、`1.21.5`、`1.21.8`、`1.21.10`、`1.21.11`、`26.1`、`26.2`、`26.3`。
+每个节点的依赖与兼容范围写在 `versions/<节点>/gradle.properties`；源码中的版本差异用 `//? if ...` 指令处理。
 
-| 构建所在分支 | 产物 |
-|---|---|
-| `dev` | `quickview-<版本>-dev.jar` |
-| `main` / tag | `quickview-<版本>.jar` |
-| 任意分支 | `gradlew build -Prelease` 强制使用正式版本号 |
+产物在 `build/libs/`，文件名带 Minecraft 版本：`quickview-<mod版本>-mc<minecraft版本>.jar`。
+版本号仍随 git 分支切换：`dev` 分支带 `-dev` 后缀，`main` / tag 为正式版本号；`gradlew build -Prelease` 可强制正式号。
 
 ## 项目结构
+
+多版本相关：
+
+```
+settings.gradle.kts          # Stonecutter 节点列表
+stonecutter.gradle.kts       # 插件版本 + buildAndGather
+build.gradle.kts             # 按节点切换 Loom/Java/依赖与源码替换
+versions/<节点>/gradle.properties  # 每个版本的 MC / Fabric API / LibGui / Java 范围
+```
 
 ```
 src/main/java/dev/quickview/

@@ -1,9 +1,9 @@
 package dev.quickview.gui;
 
+import com.mojang.blaze3d.platform.Window;
 import io.github.cottonmc.cotton.gui.widget.WGridPanel;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.util.Window;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * 下拉列表本体（1px 网格 = 子控件直接用像素坐标）。
@@ -19,14 +19,14 @@ final class DropdownListPanel extends WGridPanel {
     }
 
     @Override
-    public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    public void paint(GuiGraphics context, int x, int y, int mouseX, int mouseY) {
+        Minecraft client = Minecraft.getInstance();
         Window window = client.getWindow();
-        double scale = window.getScaleFactor();
+        double scale = window.getGuiScale();
         // Mouse.getX/getY 是窗口像素坐标，除以 GUI 缩放比得到 GUI 坐标；
         // 再减本面板绝对位置换算成本地坐标系（WPanel 派发约定）
-        int realX = (int) (client.mouse.getX() / scale) - x;
-        int realY = (int) (client.mouse.getY() / scale) - y;
+        int realX = (int) (client.mouseHandler.xpos() / scale) - x;
+        int realY = (int) (client.mouseHandler.ypos() / scale) - y;
         super.paint(context, x, y, realX, realY);
     }
 }

@@ -2,8 +2,10 @@ package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.data.InputResult;
-import net.minecraft.client.gui.Click;
-import net.minecraft.text.Text;
+//? if >=1.21.9 {
+import net.minecraft.client.input.MouseButtonEvent;
+//?}
+import net.minecraft.network.chat.Component;
 
 /**
  * 书签条目按钮，支持拖拽排序。
@@ -53,7 +55,7 @@ public class WViewpointEntry extends WButton {
     }
 
     public WViewpointEntry() {
-        super(Text.literal(""));
+        super(Component.literal(""));
         this.normalColor = this.color;
     }
 
@@ -80,8 +82,9 @@ public class WViewpointEntry extends WButton {
         }
     }
 
+    //? if >=1.21.9 {
     @Override
-    public InputResult onMouseDown(Click click, boolean doubled) {
+    public InputResult onMouseDown(MouseButtonEvent click, boolean doubled) {
         pressed = true;
         dragging = false;
         suppressClick = false;
@@ -89,15 +92,35 @@ public class WViewpointEntry extends WButton {
         pressY = (int) click.y();
         return InputResult.PROCESSED;
     }
-
+    //?} else {
     @Override
-    public InputResult onMouseDrag(Click click, double offsetX, double offsetY) {
+    public InputResult onMouseDown(int x, int y, int button) {
+        pressed = true;
+        dragging = false;
+        suppressClick = false;
+        pressX = x;
+        pressY = y;
+        return InputResult.PROCESSED;
+    }
+    //?}
+
+    //? if >=1.21.9 {
+    @Override
+    public InputResult onMouseDrag(MouseButtonEvent click, double offsetX, double offsetY) {
+        return dragTo((int) click.x(), (int) click.y());
+    }
+    //?} else {
+    @Override
+    public InputResult onMouseDrag(int x, int y, int button, double deltaX, double deltaY) {
+        return dragTo(x, y);
+    }
+    //?}
+
+    private InputResult dragTo(int x, int y) {
         if (!pressed || dragHost == null || !dragHost.isDragEnabled()) {
             return InputResult.IGNORED;
         }
 
-        int x = (int) click.x();
-        int y = (int) click.y();
         if (!dragging
                 && (Math.abs(x - pressX) > DRAG_THRESHOLD || Math.abs(y - pressY) > DRAG_THRESHOLD)) {
             dragging = true;
@@ -110,8 +133,19 @@ public class WViewpointEntry extends WButton {
         return InputResult.PROCESSED;
     }
 
+    //? if >=1.21.9 {
     @Override
-    public InputResult onMouseUp(Click click) {
+    public InputResult onMouseUp(MouseButtonEvent click) {
+        return release();
+    }
+    //?} else {
+    @Override
+    public InputResult onMouseUp(int x, int y, int button) {
+        return release();
+    }
+    //?}
+
+    private InputResult release() {
         pressed = false;
         boolean wasDragging = dragging;
         dragging = false;
@@ -126,12 +160,23 @@ public class WViewpointEntry extends WButton {
         return InputResult.IGNORED;
     }
 
+    //? if >=1.21.9 {
     @Override
-    public InputResult onClick(Click click, boolean doubled) {
+    public InputResult onClick(MouseButtonEvent click, boolean doubled) {
         if (suppressClick) {
             suppressClick = false;
             return InputResult.PROCESSED;
         }
         return super.onClick(click, doubled);
     }
+    //?} else {
+    @Override
+    public InputResult onClick(int x, int y, int button) {
+        if (suppressClick) {
+            suppressClick = false;
+            return InputResult.PROCESSED;
+        }
+        return super.onClick(x, y, button);
+    }
+    //?}
 }

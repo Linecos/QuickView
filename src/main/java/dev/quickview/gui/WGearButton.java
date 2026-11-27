@@ -2,8 +2,8 @@ package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.client.ScreenDrawing;
 import io.github.cottonmc.cotton.gui.widget.WButton;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 /**
  * 设置入口的齿轮图标按钮：正方形，用若干实心矩形拼出一个像素风齿轮。
@@ -26,11 +26,11 @@ public class WGearButton extends WButton {
     private static final int GEAR_SIZE = 11;
 
     public WGearButton() {
-        super(Text.literal(""));
+        super(Component.literal(""));
     }
 
     @Override
-    public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
+    public void paint(GuiGraphics context, int x, int y, int mouseX, int mouseY) {
         super.paint(context, x, y, mouseX, mouseY);
 
         int cx = x + getWidth() / 2;
@@ -58,7 +58,7 @@ public class WGearButton extends WButton {
         ScreenDrawing.coloredRect(context, cx - 1, cy - 1, 3, 3, HOLE_COLOR);
     }
 
-    private static void fill(DrawContext context, int x, int y, int w, int h) {
+    private static void fill(GuiGraphics context, int x, int y, int w, int h) {
         ScreenDrawing.coloredRect(context, x, y, w, h, GEAR_COLOR);
     }
 }

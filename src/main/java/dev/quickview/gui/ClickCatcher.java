@@ -2,7 +2,9 @@ package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.widget.WPanel;
 import io.github.cottonmc.cotton.gui.widget.data.InputResult;
-import net.minecraft.client.gui.Click;
+//? if >=1.21.9 {
+import net.minecraft.client.input.MouseButtonEvent;
+//?}
 
 /**
  * 展开下拉列表时铺满宿主面板的透明挡板：点列表以外的地方先收起列表，
@@ -26,9 +28,17 @@ final class ClickCatcher extends WPanel {
         return new ClickCatcher(onOutsideClick);
     }
 
+    //? if >=1.21.9 {
     @Override
-    public InputResult onMouseDown(Click click, boolean doubled) {
+    public InputResult onMouseDown(MouseButtonEvent click, boolean doubled) {
         onOutsideClick.run();
         return InputResult.PROCESSED;
     }
+    //?} else {
+    @Override
+    public InputResult onMouseDown(int x, int y, int button) {
+        onOutsideClick.run();
+        return InputResult.PROCESSED;
+    }
+    //?}
 }

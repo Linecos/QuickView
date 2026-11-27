@@ -1,10 +1,9 @@
 package dev.quickview;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
-
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -57,7 +56,7 @@ public final class TweakerooFreecam {
                 updatePositionAtPreset = cameraEntityClass.getMethod("updatePositionAtPreset", cameraPresetClass);
                 getCamera = cameraEntityClass.getMethod("getCamera");
                 presetConstructor = cameraPresetClass.getConstructor(int.class, String.class, Identifier.class,
-                        Vec3d.class, float.class, float.class);
+                        Vec3.class, float.class, float.class);
                 available = true;
             } catch (Throwable t) {
                 // 版本不匹配就走自带实现，不影响 QuickView 本身能用
@@ -119,10 +118,10 @@ public final class TweakerooFreecam {
             // (脚底 + getEyeHeight())，站立玩家眼高 1.62。QuickView 书签存的是眼睛坐标
             // （captureViewSnapshot 用 getEyePos()），原样传过去会整体高出一个眼高。
             // 这里扣掉眼高换算回脚底，两种实现的落点才一致。
-            double eyeHeight = camera instanceof Entity entity ? entity.getStandingEyeHeight() : 0.0;
+            double eyeHeight = camera instanceof Entity entity ? entity.getEyeHeight() : 0.0;
             // 再把它摆到书签位置/朝向。预设不注册进 Tweakeroo 的预设列表，用完即丢
             Object preset = presetConstructor.newInstance(PRESET_ID, "quickview", dimension,
-                    new Vec3d(viewpoint.getX(), viewpoint.getY() - eyeHeight, viewpoint.getZ()),
+                    new Vec3(viewpoint.getX(), viewpoint.getY() - eyeHeight, viewpoint.getZ()),
                     viewpoint.getYaw(), viewpoint.getPitch());
             updatePositionAtPreset.invoke(null, preset);
             return true;
