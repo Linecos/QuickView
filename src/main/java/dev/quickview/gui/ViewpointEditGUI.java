@@ -7,12 +7,11 @@ import io.github.cottonmc.cotton.gui.client.LightweightGuiDescription;
 import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.WGridPanel;
 import io.github.cottonmc.cotton.gui.widget.WLabel;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
-
 import java.util.List;
 import java.util.function.Predicate;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 public class ViewpointEditGUI extends LightweightGuiDescription {
     private static final int COORD_BOX_W = 16;
@@ -53,7 +52,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
 
     private final WGridPanel root = new WGridPanel(5) {
         @Override
-        public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
+        public void paint(GuiGraphics context, int x, int y, int mouseX, int mouseY) {
             // 分组下拉展开期间冻结全界面 hover（原理见 ViewpointGUI.root 注释）
             if (groupList != null) {
                 super.paint(context, x, y, ViewpointGUI.HOVER_OFF_XY, ViewpointGUI.HOVER_OFF_XY);
@@ -64,15 +63,15 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     };
     private final Viewpoint viewpoint;
     private final WTextFieldExtra nameField = new WTextFieldExtra()
-            .setSuggestion(Text.translatable("quickview.gui.edit.name"));
+            .setSuggestion(Component.translatable("quickview.gui.edit.name"));
     private final WTextFieldExtra groupField = new WTextFieldExtra()
-            .setSuggestion(Text.translatable("quickview.gui.edit.group"));
+            .setSuggestion(Component.translatable("quickview.gui.edit.group"));
     private final WTextFieldExtra xField;
     private final WTextFieldExtra yField;
     private final WTextFieldExtra zField;
     private final WTextFieldExtra yawField;
     private final WTextFieldExtra pitchField;
-    private final WButton setCurrentBtn = new WButton(Text.translatable("quickview.gui.edit.set_current"))
+    private final WButton setCurrentBtn = new WButton(Component.translatable("quickview.gui.edit.set_current"))
             .setOnClick(this::setToCurrent);
     /** 下拉按钮上的箭头：按钮和箭头必须同一个实例，展开时才能翻成 ∧。 */
     private final ChevronIcon chevron = new ChevronIcon();
@@ -82,16 +81,16 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     private final WButton deleteBtn = new WButton(new TrashIcon())
             .setOnClick(this::requestDelete);
     /** 克隆按钮：复制当前书签为新书签（克隆后直接切到编辑副本）。仅「编辑已有书签」时显示。 */
-    private final WButton cloneBtn = new WButton(Text.translatable("quickview.gui.edit.clone"))
+    private final WButton cloneBtn = new WButton(Component.translatable("quickview.gui.edit.clone"))
             .setOnClick(this::requestClone);
     /**
      * 新建模式底部的两个按钮：<b>保存</b>（关闭面板，closeCallback 负责落盘 + 刷新）与
      * <b>取消</b>（丢弃刚建的草稿，不留下空书签）。编辑模式下不显示这两个 ——
      * 编辑面板的语义是「关了就等于保存了」，没有单独提交步骤。
      */
-    private final WButton saveBtn = new WButton(Text.translatable("quickview.gui.edit.save"))
+    private final WButton saveBtn = new WButton(Component.translatable("quickview.gui.edit.save"))
             .setOnClick(this::requestSave);
-    private final WButton cancelBtn = new WButton(Text.translatable("quickview.gui.confirm.cancel"))
+    private final WButton cancelBtn = new WButton(Component.translatable("quickview.gui.confirm.cancel"))
             .setOnClick(this::requestCancel);
     private final QuickViewManager manager = QuickViewManager.getInstance();
 
@@ -269,8 +268,8 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         if (inputMode) {
             rows = 1;
             newGroupField = new WTextFieldExtra()
-                    .setSuggestion(Text.translatable("quickview.gui.edit.group.new.hint"));
-            WButton okBtn = new WButton(Text.translatable("quickview.gui.confirm.ok"))
+                    .setSuggestion(Component.translatable("quickview.gui.edit.group.new.hint"));
+            WButton okBtn = new WButton(Component.translatable("quickview.gui.confirm.ok"))
                     .setOnClick(this::confirmNewGroup);
             list.add(newGroupField, rowX, DropdownStyle.ROW_TOP, rowW - 43, LIST_ROW_H);
             list.add(okBtn, rowX + rowW - 40, DropdownStyle.ROW_TOP, 40, LIST_ROW_H);
@@ -278,14 +277,14 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
             rows = Math.min(groups.size() + 2, LIST_MAX_ROWS);
             String current = viewpoint.getGroup();
             // 「新建分组」永远可用 —— 没有任何已有分组时它是唯一入口
-            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null, false),
+            list.add(createGroupEntry(Component.translatable("quickview.gui.edit.group.new"), null, false),
                     rowX, DropdownStyle.ROW_TOP, rowW, LIST_ROW_H);
-            list.add(createGroupEntry(Text.translatable("quickview.gui.edit.group.none"), "",
+            list.add(createGroupEntry(Component.translatable("quickview.gui.edit.group.none"), "",
                             current.isEmpty()),
                     rowX, DropdownStyle.ROW_TOP + LIST_ROW_H, rowW, LIST_ROW_H);
             for (int i = 0; i < rows - 2; i++) {
                 String name = groups.get(i);
-                list.add(createGroupEntry(Text.literal(name), name, name.equals(current)),
+                list.add(createGroupEntry(Component.literal(name), name, name.equals(current)),
                         rowX, DropdownStyle.ROW_TOP + (i + 2) * LIST_ROW_H, rowW, LIST_ROW_H);
             }
         }
@@ -336,7 +335,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
      * @param value   null = 「新建分组」入口（点击切到行内输入）；空串 = 「（无分组）」
      * @param current 该书签当前所在的分组：置灰不可点（再选一次没有意义，选别的行才有意义）
      */
-    private WButton createGroupEntry(Text label, String value, boolean current) {
+    private WButton createGroupEntry(Component label, String value, boolean current) {
         WButton btn = new WButton(label).setOnClick(() -> {
             if (value == null) {
                 closeGroupList();
@@ -370,7 +369,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     private WLabel coordLabel(String text) {
-        return new WLabel(Text.literal(text), 0xFFFFFFFF);
+        return new WLabel(Component.literal(text), 0xFFFFFFFF);
     }
 
     /** 用模型中的真实值刷新全部坐标/朝向输入框。 */
@@ -417,7 +416,7 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
     }
 
     private void setToCurrent() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) return;
 
         Viewpoint snapshot = manager.captureViewSnapshot("");
@@ -483,6 +482,9 @@ public class ViewpointEditGUI extends LightweightGuiDescription {
         if (!name.isEmpty()) {
             viewpoint.setName(name);
         }
+        // 分组也必须在这里写回：分组平时只靠「失焦回调」提交，而 LibGui 只在鼠标点击时释放焦点，
+        // 所以「在分组框打完字直接按 ESC/V 关面板」不会触发失焦 —— 不补这一句就会丢掉分组。
+        viewpoint.setGroup(groupField.getText());
         applyCoordinates();
         manager.saveViewpoints();
     }

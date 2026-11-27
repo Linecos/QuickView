@@ -1,19 +1,22 @@
 package dev.quickview;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.client.option.Perspective;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.Entity;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.PlayerInput;
+import net.minecraft.client.CameraType;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
-
+import net.minecraft.world.entity.Entity;
+//? if >=1.21.2 {
+import net.minecraft.world.entity.player.Input;
+//?} else {
+import net.minecraft.client.player.Input;
+//?}
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -52,7 +55,7 @@ public class QuickViewManager {
     private double prevY;
     private double prevZ;
 
-    private Perspective savedPerspective;
+    private CameraType savedPerspective;
 
     private double velForward;
     private double velStrafe;
@@ -90,6 +93,14 @@ public class QuickViewManager {
     /** 从 config/quickview.json 读取设置，应在客户端初始化时调用一次。 */
     public void loadConfig() {
         this.config = QuickViewConfig.load();
+        // 配置里开着「用 Tweakeroo 灵魂出窍」但当前 Tweakeroo 不可用（没装 / 版本对不上）：
+        // 直接归零，避免设置页出现一个「灰着又是开」的开关 —— 那种状态在界面上关不掉，只能改文件。
+        // 功能本身不受影响：所有调用点都还要求 TweakerooFreecam.isAvailable()，否则回落自带实现
+        if (config.isUseTweakerooFreecam() && !TweakerooFreecam.isAvailable()) {
+            QuickViewClient.LOGGER.warn("配置启用了 Tweakeroo 自由相机，但 Tweakeroo 不可用，已关闭该项");
+            config.setUseTweakerooFreecam(false);
+            config.save();
+        }
     }
 
     public boolean isViewActive() {
@@ -206,6 +217,13 @@ public class QuickViewManager {
     }
 
     public void onTickStart() {
+        // Tweakeroo 会自己关掉自由相机（典型场景：换维度时它强制 setBooleanValue(false)），
+        // 这里把标志同步回来，避免 QuickView 一直以为还在视角里（B 键 / 恢复按钮 / 受伤恢复都看 isViewActive()）。
+        // isEnabled() 只在确实处于 Tweakeroo 接管时才调用，开销可忽略。
+        if (tweakerooViewActive && !TweakerooFreecam.isEnabled()) {
+            tweakerooViewActive = false;
+            activeViewpoint = null;
+        }
         if (!viewActive) return;
 
         prevX = freeX;
@@ -226,7 +244,7 @@ public class QuickViewManager {
      *         菜单开着时移动输入被拦，玩家会「回到本体但动不了」）
      */
     public boolean tickDamageWatch() {
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) {
             lastHealth = Float.NaN;
             lastAbsorption = Float.NaN;
@@ -254,12 +272,12 @@ public class QuickViewManager {
 
         // 偏航角每次累加后归一化到 [-180,180)：不归一的话长时间自由视角会把 freeYaw 累加到很大，
         // 一是 Math.toRadians 的精度随幅度下降，二是快照存进 JSON 的 Yaw 会显示成 4321.0 这类怪值。
-        freeYaw = MathHelper.wrapDegrees(freeYaw + (float) (cursorDeltaX * 0.15));
+        freeYaw = Mth.wrapDegrees(freeYaw + (float) (cursorDeltaX * 0.15));
         freePitch += (float) (cursorDeltaY * 0.15);
         freePitch = Math.max(-90.0f, Math.min(90.0f, freePitch));
     }
 
-    public void applyFreecamMovement(PlayerInput input) {
+    public void applyFreecamMovement(Input input) {
         if (!viewActive) return;
 
         int forward = 0;
@@ -267,15 +285,29 @@ public class QuickViewManager {
         int vertical = 0;
 
         if (config.isFreeMoveEnabled()) {
+            //? if >=1.21.2 {
             if (input.forward()) forward += 1;
             if (input.backward()) forward -= 1;
             if (input.right()) strafe += 1;
             if (input.left()) strafe -= 1;
             if (input.jump()) vertical += 1;
-            if (input.sneak()) vertical -= 1;
+            if (input.shift()) vertical -= 1;
+            //?} else {
+            if (input.forwardImpulse > 0.0f) forward += 1;
+            if (input.forwardImpulse < 0.0f) forward -= 1;
+            if (input.leftImpulse > 0.0f) strafe -= 1;
+            if (input.leftImpulse < 0.0f) strafe += 1;
+            if (input.jumping) vertical += 1;
+            if (input.shiftKeyDown) vertical -= 1;
+            //?}
         }
 
+        //? if >=1.21.2 {
         boolean sprint = config.isFreeMoveEnabled() && input.sprint();
+        //?} else {
+        boolean sprint = config.isFreeMoveEnabled()
+                && Minecraft.getInstance().options.keySprint.isDown();
+        //?}
 
         double diagonal = (forward != 0 && strafe != 0) ? 1.2 : 1.0;
         velForward = rampVelocity(velForward, forward) / diagonal;
@@ -347,12 +379,12 @@ public class QuickViewManager {
      * 这样既省掉每次编辑/删除/克隆的一次磁盘 IO，也消除了「重载换对象、旧引用成孤儿」的隐患。
      */
     public boolean ensureContextCurrent() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientWorld world = client.world;
+        Minecraft client = Minecraft.getInstance();
+        ClientLevel world = client.level;
         if (world == null) return false;
 
-        RegistryKey<World> dimKey = world.getRegistryKey();
-        Identifier dimId = dimKey.getValue();
+        ResourceKey<Level> dimKey = world.dimension();
+        Identifier dimId = dimKey.identifier();
         String dimension = dimId.toString();
         String context = resolveContext(client);
 
@@ -370,17 +402,17 @@ public class QuickViewManager {
         ViewpointStorage.save(currentContext, currentDimension, viewpoints);
     }
 
-    private static String resolveContext(MinecraftClient client) {
-        ServerInfo entry = client.getCurrentServerEntry();
+    private static String resolveContext(Minecraft client) {
+        ServerData entry = client.getCurrentServer();
         if (entry != null) {
-            String address = entry.address;
+            String address = entry.ip;
             if (address != null && !address.isEmpty()) {
                 return address;
             }
             return entry.name;
         }
-        if (client.getServer() != null) {
-            return client.getServer().getSaveProperties().getLevelName();
+        if (client.getSingleplayerServer() != null) {
+            return client.getSingleplayerServer().getWorldData().getLevelName();
         }
         return "unknown";
     }
@@ -390,7 +422,7 @@ public class QuickViewManager {
     }
 
     public Viewpoint createViewpoint(String name) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) return null;
 
         Viewpoint vp = captureViewSnapshot(name);
@@ -401,7 +433,7 @@ public class QuickViewManager {
     }
 
     public Viewpoint captureViewSnapshot(String name) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
 
         // 处于 QuickView 自由视角时，快照必须基于“当前正在看的相机”，而非玩家本体
         if (viewActive) {
@@ -411,11 +443,11 @@ public class QuickViewManager {
         Entity entity = resolveViewEntity(client);
         if (entity == null) return null;
 
-        Vec3d eye = entity.getEyePos();
-        return new Viewpoint(name, currentDimension, eye.x, eye.y, eye.z, entity.getYaw(), entity.getPitch());
+        Vec3 eye = entity.getEyePosition();
+        return new Viewpoint(name, currentDimension, eye.x, eye.y, eye.z, entity.getYRot(), entity.getXRot());
     }
 
-    private Entity resolveViewEntity(MinecraftClient client) {
+    private Entity resolveViewEntity(Minecraft client) {
         Entity cameraEntity = client.getCameraEntity();
         if (config.isPreferFreecam() && cameraEntity != null && cameraEntity != client.player) {
             return cameraEntity;
@@ -468,8 +500,8 @@ public class QuickViewManager {
     }
 
     public void switchToViewpoint(Viewpoint vp) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer player = client.player;
         if (player == null) return;
 
         // 选了 Tweakeroo 实现：把相机整个交给它（它自己管移动、输入与视角恢复）
@@ -483,7 +515,9 @@ public class QuickViewManager {
                 activeViewpoint = vp;
                 return;
             }
-            // 它没接住（世界未就绪 / API 不匹配）→ 继续走下面的自带实现
+            // 它没接住（世界未就绪 / API 不匹配 / 维度对不上）→ 先清掉「Tweakeroo 接管中」的标志，
+            // 否则回落到自带实现后会两个标志同时为真，restore() 会先清 Tweakeroo 而漏掉自带相机。
+            tweakerooViewActive = false;
         }
 
         // 必须在 viewActive 置位前取值：若已经是自由视角（例如在菜单里又点了另一个书签），
@@ -506,12 +540,12 @@ public class QuickViewManager {
         } else {
             Entity entity = resolveViewEntity(client);
             if (entity == null) return;
-            Vec3d eye = entity.getEyePos();
+            Vec3 eye = entity.getEyePosition();
             startX = eye.x;
             startY = eye.y;
             startZ = eye.z;
-            startYaw = entity.getYaw();
-            startPitch = entity.getPitch();
+            startYaw = entity.getYRot();
+            startPitch = entity.getXRot();
         }
 
         activeViewpoint = vp;
@@ -533,19 +567,19 @@ public class QuickViewManager {
             fromZ = startZ;
             fromYaw = startYaw;
             fromPitch = startPitch;
-            transitionStartMs = Util.getMeasuringTimeMs();
+            transitionStartMs = Util.getMillis();
             transitionActive = true;
             freeX = startX;
             freeY = startY;
             freeZ = startZ;
-            freeYaw = MathHelper.wrapDegrees(startYaw);
+            freeYaw = Mth.wrapDegrees(startYaw);
             freePitch = startPitch;
         } else {
             transitionActive = false;
             freeX = targetX;
             freeY = targetY;
             freeZ = targetZ;
-            freeYaw = MathHelper.wrapDegrees(targetYaw);
+            freeYaw = Mth.wrapDegrees(targetYaw);
             freePitch = targetPitch;
         }
 
@@ -554,9 +588,9 @@ public class QuickViewManager {
         prevZ = freeZ;
 
         if (firstEntry) {
-            savedPerspective = client.options.getPerspective();
+            savedPerspective = client.options.getCameraType();
         }
-        client.options.setPerspective(Perspective.FIRST_PERSON);
+        client.options.setCameraType(CameraType.FIRST_PERSON);
     }
 
     /**
@@ -567,14 +601,14 @@ public class QuickViewManager {
     public void updateTransition() {
         if (!transitionActive) return;
 
-        long elapsed = Util.getMeasuringTimeMs() - transitionStartMs;
+        long elapsed = Util.getMillis() - transitionStartMs;
         double t = transitionMillis <= 0 ? 1.0 : Math.min(1.0, elapsed / (double) transitionMillis);
         double eased = t * t * (3.0 - 2.0 * t);
 
         freeX = fromX + (targetX - fromX) * eased;
         freeY = fromY + (targetY - fromY) * eased;
         freeZ = fromZ + (targetZ - fromZ) * eased;
-        freeYaw = MathHelper.wrapDegrees(fromYaw + Angles.shortestDelta(fromYaw, targetYaw) * (float) eased);
+        freeYaw = Mth.wrapDegrees(fromYaw + Angles.shortestDelta(fromYaw, targetYaw) * (float) eased);
         freePitch = fromPitch + (targetPitch - fromPitch) * (float) eased;
 
         prevX = freeX;
@@ -583,22 +617,22 @@ public class QuickViewManager {
 
         if (t >= 1.0) {
             transitionActive = false;
-            freeYaw = MathHelper.wrapDegrees(targetYaw);
+            freeYaw = Mth.wrapDegrees(targetYaw);
             freePitch = targetPitch;
         }
     }
 
     public void restore() {
-        // Tweakeroo 接管中：关掉它的自由相机即可（视角恢复、相机复位都由它自己做）
+        // Tweakeroo 接管中：关掉它的自由相机（视角恢复、相机复位都由它自己做）。
+        // ⚠️ 不在这里早退：万一两个标志同时为真（Tweakeroo 开启失败后回落到自带实现等），
+        // 自带相机也必须一起清掉，否则会卡在自带自由视角里、savedPerspective 也回不去。
         if (tweakerooViewActive) {
             TweakerooFreecam.disable();
             tweakerooViewActive = false;
-            activeViewpoint = null;
-            return;
         }
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (savedPerspective != null) {
-            client.options.setPerspective(savedPerspective);
+            client.options.setCameraType(savedPerspective);
             savedPerspective = null;
         }
         viewActive = false;
@@ -647,14 +681,14 @@ public class QuickViewManager {
      * （可能还是另一个维度），同时移动输入被清零，角色动不了。
      */
     public void clearViewState() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         // 换世界时把可能残留的 Tweakeroo 自由相机也收掉（它自己也会在进世界时关，这里是兜底）
         if (tweakerooViewActive) {
             TweakerooFreecam.disable();
             tweakerooViewActive = false;
         }
         if (savedPerspective != null) {
-            client.options.setPerspective(savedPerspective);
+            client.options.setCameraType(savedPerspective);
             savedPerspective = null;
         }
         viewActive = false;

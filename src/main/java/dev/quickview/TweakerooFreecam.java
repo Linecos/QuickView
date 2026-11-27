@@ -1,9 +1,9 @@
 package dev.quickview;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
-
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -56,7 +56,7 @@ public final class TweakerooFreecam {
                 updatePositionAtPreset = cameraEntityClass.getMethod("updatePositionAtPreset", cameraPresetClass);
                 getCamera = cameraEntityClass.getMethod("getCamera");
                 presetConstructor = cameraPresetClass.getConstructor(int.class, String.class, Identifier.class,
-                        Vec3d.class, float.class, float.class);
+                        Vec3.class, float.class, float.class);
                 available = true;
             } catch (Throwable t) {
                 // 版本不匹配就走自带实现，不影响 QuickView 本身能用
@@ -94,26 +94,45 @@ public final class TweakerooFreecam {
         if (!available || viewpoint == null) {
             return false;
         }
-        Identifier dimension = Identifier.tryParse(viewpoint.getDimension());
+        // dimension 可能因 JSON 缺字段未被归一化（如直接构造的实例）而为 null，
+        // tryParse → trySplitOn 里直接 id.indexOf(':')，null 必 NPE；先挡一道兜底
+        String dimensionId = viewpoint.getDimension();
+        if (dimensionId == null) {
+            return false;
+        }
+        // 维度非法（不在任何命名空间里 / 空）时 tryParse 返回 null：调用方回落自带实现
+        Identifier dimension = Identifier.tryParse(dimensionId);
         if (dimension == null) {
             return false;
         }
         try {
             // 先开开关：Tweakeroo 的回调会创建相机实体（此时仍在玩家位置）
             setToggleValue.invoke(freeCameraToggle, true);
-            if (getCamera.invoke(null) == null) {
+            Object camera = getCamera.invoke(null);
+            if (camera == null) {
                 // 世界/玩家还没就绪，它自己放弃了；把开关退回去，避免留下半开状态
                 setToggleValue.invoke(freeCameraToggle, false);
                 return false;
             }
+            // ⚠️ Tweakeroo 的预设坐标是「脚底」：它 setPosRaw 后，渲染时相机取
+            // (脚底 + getEyeHeight())，站立玩家眼高 1.62。QuickView 书签存的是眼睛坐标
+            // （captureViewSnapshot 用 getEyePos()），原样传过去会整体高出一个眼高。
+            // 这里扣掉眼高换算回脚底，两种实现的落点才一致。
+            double eyeHeight = camera instanceof Entity entity ? entity.getEyeHeight() : 0.0;
             // 再把它摆到书签位置/朝向。预设不注册进 Tweakeroo 的预设列表，用完即丢
             Object preset = presetConstructor.newInstance(PRESET_ID, "quickview", dimension,
-                    new Vec3d(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                    new Vec3(viewpoint.getX(), viewpoint.getY() - eyeHeight, viewpoint.getZ()),
                     viewpoint.getYaw(), viewpoint.getPitch());
             updatePositionAtPreset.invoke(null, preset);
             return true;
         } catch (Throwable t) {
             QuickViewClient.LOGGER.warn("切换到 Tweakeroo 自由相机失败: {}", t.toString());
+            // 可能已经打开了开关才失败：尽量再关掉，避免和调用方回落的自带相机同时生效
+            try {
+                setToggleValue.invoke(freeCameraToggle, false);
+            } catch (Throwable ignored) {
+                // 关不掉也只能记日志了，至少别把异常再抛出去
+            }
             return false;
         }
     }

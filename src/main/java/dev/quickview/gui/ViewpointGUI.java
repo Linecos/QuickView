@@ -8,13 +8,12 @@ import io.github.cottonmc.cotton.gui.client.LightweightGuiDescription;
 import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.WGridPanel;
 import io.github.cottonmc.cotton.gui.widget.WToggleButton;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public class ViewpointGUI extends LightweightGuiDescription {
     /** 分组下拉列表的几何：贴左上角（分组按钮正下方），宽度与按钮一致。 */
@@ -39,45 +38,45 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private static final int ASSIGN_MAX_ROWS = 8;
 
     private final WTextFieldExtra search = new WTextFieldExtra()
-            .setSuggestion(Text.translatable("quickview.gui.main.search"))
+            .setSuggestion(Component.translatable("quickview.gui.main.search"))
             .setMaxLength(64);
-    private final WButton addBtn = new WButton(Text.translatable("quickview.gui.main.add"))
+    private final WButton addBtn = new WButton(Component.translatable("quickview.gui.main.add"))
             .setOnClick(this::addCallback);
     private final WButton clearBtn = new WClearButton()
             .setOnClick(this::clearSearch);
-    private final WToggleButton editBtn = new WToggleButton(Text.translatable("quickview.gui.main.edit"))
+    private final WToggleButton editBtn = new WToggleButton(Component.translatable("quickview.gui.main.edit"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::editBtnCallback);
-    private final WToggleButton deleteBtn = new WToggleButton(Text.translatable("quickview.gui.main.delete"))
+    private final WToggleButton deleteBtn = new WToggleButton(Component.translatable("quickview.gui.main.delete"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::deleteBtnCallback);
-    private final WButton restoreBtn = new WButton(Text.translatable("quickview.gui.main.restore"))
+    private final WButton restoreBtn = new WButton(Component.translatable("quickview.gui.main.restore"))
             .setOnClick(this::restoreCallback);
-    private final WToggleButton sortBtn = new WToggleButton(Text.translatable("quickview.gui.main.sort"))
+    private final WToggleButton sortBtn = new WToggleButton(Component.translatable("quickview.gui.main.sort"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::sortBtnCallback);
-    private final WToggleButton assignBtn = new WToggleButton(Text.translatable("quickview.gui.main.assign"))
+    private final WToggleButton assignBtn = new WToggleButton(Component.translatable("quickview.gui.main.assign"))
             .setColor(0xFFFFFFFF, 0xFFFFFFFF)
             .setOnToggle(this::assignBtnCallback);
-    private final WButton groupBtn = new WButton(Text.translatable("quickview.gui.main.groupAll"))
+    private final WButton groupBtn = new WButton(Component.translatable("quickview.gui.main.groupAll"))
             .setOnClick(this::toggleGroupList);
     private final WButton settingsBtn = new WGearButton()
             .setOnClick(this::settingsCallback);
     /** 垃圾桶图标无状态，两处（删除提示 + 删除已选按钮）共用一个实例。 */
     private static final TrashIcon TRASH = new TrashIcon();
     /** 批量删除的「删除已选 (N)」按钮：垃圾桶图标 + 数量。 */
-    private final WButton deleteSelectedBtn = new WButton(TRASH, Text.translatable("quickview.gui.main.deleteSelected", 0))
+    private final WButton deleteSelectedBtn = new WButton(TRASH, Component.translatable("quickview.gui.main.deleteSelected", 0))
             .setOnClick(this::deleteSelectedCallback);
     /** 批量归组的「归组已选 (N)」按钮：点开目标分组下拉。 */
-    private final WButton assignSelectedBtn = new WButton(Text.translatable("quickview.gui.main.assignSelected", 0))
+    private final WButton assignSelectedBtn = new WButton(Component.translatable("quickview.gui.main.assignSelected", 0))
             .setOnClick(() -> openAssignGroupList(false));
     /**
      * 动作行中间格的「模式提示」：一个带按钮背景、disabled 的 WButton，文字按模式变化。
      * 分两个实例 —— hintPlain（无图标，编辑/排序用）和 hintTrash（垃圾桶图标紧贴文字左边，删除用），
      * 切换模式时 add/remove 其一。都 disabled，只作提示框不可点。
      */
-    private final WButton hintPlain = new WButton(Text.literal(""));
-    private final WButton hintTrash = new WButton(TRASH, Text.literal(""));
+    private final WButton hintPlain = new WButton(Component.literal(""));
+    private final WButton hintTrash = new WButton(TRASH, Component.literal(""));
     {
         // 提示框不可点：只作带按钮背景的提示文字（disabled 时 WButton 文字变灰、底纹变暗）
         hintPlain.setEnabled(false);
@@ -94,7 +93,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
 
     private final WGridPanel root = new WGridPanel(5) {
         @Override
-        public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
+        public void paint(GuiGraphics context, int x, int y, int mouseX, int mouseY) {
             if (groupListPanel != null || assignGroupPanel != null) {
                 super.paint(context, x, y, HOVER_OFF_XY, HOVER_OFF_XY);
                 return;
@@ -149,8 +148,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void configureEntry(Viewpoint vp, WViewpointEntry btn) {
         String group = vp.getGroup();
         btn.setLabel(group.isEmpty()
-                ? Text.literal(vp.getName())
-                : Text.literal("[" + group + "] " + vp.getName()));
+                ? Component.literal(vp.getName())
+                : Component.literal("[" + group + "] " + vp.getName()));
         btn.setOnClick(() -> {
             if (sortBtn.getToggle()) {
                 // 排序模式下条目只用于拖拽，点一下不做任何事（避免误切换视角）
@@ -163,7 +162,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
                 panel.toggleSelected(vp);
             } else {
                 manager.switchToViewpoint(vp);
-                MinecraftClient.getInstance().setScreen(null);
+                Minecraft.getInstance().setScreen(null);
             }
         });
     }
@@ -248,12 +247,12 @@ public class ViewpointGUI extends LightweightGuiDescription {
         // 否则行铺满会盖住描边，只剩上下框，看起来像背景宽度没跟上行。
         int rowX = 1;
         int rowW = GROUP_LIST_W - 2;
-        list.add(createGroupFilterEntry(Text.translatable("quickview.gui.main.groupAll"), "",
+        list.add(createGroupFilterEntry(Component.translatable("quickview.gui.main.groupAll"), "",
                         groupFilter.isEmpty()),
                 rowX, DropdownStyle.ROW_TOP, rowW, GROUP_ROW_H);
         for (int i = 0; i < rows - 1; i++) {
             String name = groups.get(i);
-            list.add(createGroupFilterEntry(Text.literal(name), name, groupFilter.equals(name)),
+            list.add(createGroupFilterEntry(Component.literal(name), name, groupFilter.equals(name)),
                     rowX, DropdownStyle.ROW_TOP + (i + 1) * GROUP_ROW_H, rowW, GROUP_ROW_H);
         }
         list.setHost(this);
@@ -279,7 +278,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
     }
 
     /** value 为空串表示「全部」。当前已选中的行置灰（暗态），点击其余行切换筛选。 */
-    private WButton createGroupFilterEntry(Text label, String value, boolean selected) {
+    private WButton createGroupFilterEntry(Component label, String value, boolean selected) {
         WButton btn = new WButton(label).setOnClick(() -> {
             groupFilter = value;
             applyGroupFilter();
@@ -312,22 +311,22 @@ public class ViewpointGUI extends LightweightGuiDescription {
         if (inputMode) {
             rows = 1;
             assignNewGroupField = new WTextFieldExtra()
-                    .setSuggestion(Text.translatable("quickview.gui.edit.group.new.hint"));
-            WButton okBtn = new WButton(Text.translatable("quickview.gui.confirm.ok"))
+                    .setSuggestion(Component.translatable("quickview.gui.edit.group.new.hint"));
+            WButton okBtn = new WButton(Component.translatable("quickview.gui.confirm.ok"))
                     .setOnClick(this::confirmAssignNewGroup);
             list.add(assignNewGroupField, rowX, DropdownStyle.ROW_TOP, rowW - 43, ASSIGN_ROW_H);
             list.add(okBtn, rowX + rowW - 40, DropdownStyle.ROW_TOP, 40, ASSIGN_ROW_H);
         } else {
             rows = Math.min(groups.size() + 2, ASSIGN_MAX_ROWS);
             String current = commonSelectedGroup();
-            list.add(createAssignGroupEntry(Text.translatable("quickview.gui.edit.group.new"), null, false),
+            list.add(createAssignGroupEntry(Component.translatable("quickview.gui.edit.group.new"), null, false),
                     rowX, DropdownStyle.ROW_TOP, rowW, ASSIGN_ROW_H);
-            list.add(createAssignGroupEntry(Text.translatable("quickview.gui.edit.group.none"), "",
+            list.add(createAssignGroupEntry(Component.translatable("quickview.gui.edit.group.none"), "",
                             current != null && current.isEmpty()),
                     rowX, DropdownStyle.ROW_TOP + ASSIGN_ROW_H, rowW, ASSIGN_ROW_H);
             for (int i = 0; i < rows - 2; i++) {
                 String name = groups.get(i);
-                list.add(createAssignGroupEntry(Text.literal(name), name,
+                list.add(createAssignGroupEntry(Component.literal(name), name,
                                 current != null && current.equals(name)),
                         rowX, DropdownStyle.ROW_TOP + (i + 2) * ASSIGN_ROW_H, rowW, ASSIGN_ROW_H);
             }
@@ -366,7 +365,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
      * @param value   null = 「新建分组」入口；空串 = 「（无分组）」
      * @param current 勾选项当前所在的分组 → 置灰不可点（同分组筛选下拉的做法）
      */
-    private WButton createAssignGroupEntry(Text label, String value, boolean current) {
+    private WButton createAssignGroupEntry(Component label, String value, boolean current) {
         WButton btn = new WButton(label).setOnClick(() -> {
             if (value == null) {
                 openAssignGroupList(true);
@@ -435,8 +434,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void updateGroupButton(List<String> groups) {
         // 按钮文字精简：无筛选显示「全部」，有筛选只显示分组名（不带「分组：」前缀）
         groupBtn.setLabel(groupFilter.isEmpty()
-                ? Text.translatable("quickview.gui.main.groupAll")
-                : Text.literal(groupFilter));
+                ? Component.translatable("quickview.gui.main.groupAll")
+                : Component.literal(groupFilter));
         groupBtn.setEnabled(!groups.isEmpty());
     }
 
@@ -452,25 +451,25 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void openEditScreen(Viewpoint vp, boolean creating) {
         ViewpointEditGUI editGui = new ViewpointEditGUI(vp, creating);
         WrapperViewpointScreen screen = new WrapperViewpointScreen(editGui);
-        Screen main = MinecraftClient.getInstance().currentScreen;
+        Screen main = Minecraft.getInstance().screen;
         screen.setCloseCallback(() -> {
             editGui.saveData();
             refreshList();
         });
         screen.setParent(main);
         // 保存：关闭面板即可 —— 落盘由关闭时的 closeCallback 统一做（输入框里没失焦的内容也会写回）
-        editGui.setOnSaveRequested(() -> MinecraftClient.getInstance().setScreen(main));
+        editGui.setOnSaveRequested(() -> Minecraft.getInstance().setScreen(main));
         // 取消：编辑模式已在面板里回滚并落盘；新建模式把这条草稿删掉（对象还在列表里，按身份删即可）
         editGui.setOnCancelRequested(() -> {
             if (creating) {
                 manager.removeViewpoint(vp);
             }
-            MinecraftClient.getInstance().setScreen(main);
+            Minecraft.getInstance().setScreen(main);
         });
         editGui.setOnDeleteRequested(() -> {
             // 只切屏（把改动落盘 + 刷新列表交给 closeCallback 统一做），再弹确认。
             // 刷新列表不换对象，所以 vp 仍是列表里的那个实例 —— 直接按身份删除即可，不需要下标。
-            MinecraftClient.getInstance().setScreen(main);
+            Minecraft.getInstance().setScreen(main);
             openDeleteConfirm(main, vp);
         });
         editGui.setOnCloneRequested(() -> {
@@ -478,17 +477,17 @@ public class ViewpointGUI extends LightweightGuiDescription {
             // 否则改名后不点别处直接克隆，克隆出来的是旧名
             editGui.saveData();
             String base = vp.getName().isEmpty()
-                    ? Text.translatable("quickview.gui.edit.unnamed").getString()
+                    ? Component.translatable("quickview.gui.edit.unnamed").getString()
                     : vp.getName();
             Viewpoint copy = manager.cloneViewpointAfter(vp,
-                    Text.translatable("quickview.gui.edit.cloneName", base).getString());
+                    Component.translatable("quickview.gui.edit.cloneName", base).getString());
             if (copy == null) return;
             // 关闭编辑页：closeCallback 会再 saveData（幂等）+ refreshList（上下文未变则不读盘）
-            MinecraftClient.getInstance().setScreen(main);
+            Minecraft.getInstance().setScreen(main);
             // 刷新列表不换对象，直接把编辑页切到克隆出的副本
             openEditScreen(copy);
         });
-        MinecraftClient.getInstance().setScreen(screen);
+        Minecraft.getInstance().setScreen(screen);
     }
 
     /**
@@ -499,18 +498,18 @@ public class ViewpointGUI extends LightweightGuiDescription {
      */
     private void openDeleteConfirm(Screen parent, Viewpoint vp) {
         // 空名书签显示「未命名」，避免出现「确定删除「」吗？」
-        Text nameArg = vp.getName().isEmpty()
-                ? Text.translatable("quickview.gui.edit.unnamed")
-                : Text.literal(shorten(vp.getName()));
+        Component nameArg = vp.getName().isEmpty()
+                ? Component.translatable("quickview.gui.edit.unnamed")
+                : Component.literal(shorten(vp.getName()));
         ConfirmGUI confirm = new ConfirmGUI(
-                Text.translatable("quickview.gui.confirm.delete", nameArg),
+                Component.translatable("quickview.gui.confirm.delete", nameArg),
                 parent,
                 () -> manager.removeViewpoint(vp));
-        confirm.setConfirmLabel(Text.translatable("quickview.gui.main.delete"));
+        confirm.setConfirmLabel(Component.translatable("quickview.gui.main.delete"));
         WrapperViewpointScreen screen = new WrapperViewpointScreen(confirm);
         screen.setParent(parent);
         screen.setCloseCallback(this::refreshList);
-        MinecraftClient.getInstance().setScreen(screen);
+        Minecraft.getInstance().setScreen(screen);
     }
 
     /** 确认框一行放不下过长的书签名，超出部分用省略号截断。 */
@@ -523,7 +522,7 @@ public class ViewpointGUI extends LightweightGuiDescription {
         manager.restore();
         // 与点书签的行为对称：完成切换就退出菜单 —— 恢复后玩家的下一步是回到游戏，
         // 菜单挡在前面没有意义；也顺带避免「恢复视角」按钮的亮暗状态滞留
-        MinecraftClient.getInstance().setScreen(null);
+        Minecraft.getInstance().setScreen(null);
     }
 
     private void clearSearch() {
@@ -536,8 +535,8 @@ public class ViewpointGUI extends LightweightGuiDescription {
     private void settingsCallback() {
         ViewpointSettingsGUI settingsGui = new ViewpointSettingsGUI();
         WrapperViewpointScreen screen = new WrapperViewpointScreen(settingsGui);
-        screen.setParent(MinecraftClient.getInstance().currentScreen);
-        MinecraftClient.getInstance().setScreen(screen);
+        screen.setParent(Minecraft.getInstance().screen);
+        Minecraft.getInstance().setScreen(screen);
     }
 
     private void editBtnCallback(Boolean toggled) {
@@ -613,25 +612,25 @@ public class ViewpointGUI extends LightweightGuiDescription {
         } else if (assignMode && selectedCount > 0) {
             target = MiddleSlot.ASSIGN_SELECTED;
         } else if (editMode) {
-            hintPlain.setLabel(Text.translatable("quickview.gui.main.modeHint.edit"));
+            hintPlain.setLabel(Component.translatable("quickview.gui.main.modeHint.edit"));
             target = MiddleSlot.HINT_PLAIN;
         } else if (sortMode) {
-            hintPlain.setLabel(Text.translatable("quickview.gui.main.modeHint.sort"));
+            hintPlain.setLabel(Component.translatable("quickview.gui.main.modeHint.sort"));
             target = MiddleSlot.HINT_PLAIN;
         } else if (deleteMode) {
-            hintTrash.setLabel(Text.translatable("quickview.gui.main.modeHint.delete"));
+            hintTrash.setLabel(Component.translatable("quickview.gui.main.modeHint.delete"));
             target = MiddleSlot.HINT_TRASH;
         } else if (assignMode) {
-            hintPlain.setLabel(Text.translatable("quickview.gui.main.modeHint.assign"));
+            hintPlain.setLabel(Component.translatable("quickview.gui.main.modeHint.assign"));
             target = MiddleSlot.HINT_PLAIN;
         } else {
             target = MiddleSlot.RESTORE;
         }
         swapActionMiddle(target);
 
-        deleteSelectedBtn.setLabel(Text.translatable("quickview.gui.main.deleteSelected", selectedCount));
+        deleteSelectedBtn.setLabel(Component.translatable("quickview.gui.main.deleteSelected", selectedCount));
         deleteSelectedBtn.setEnabled(selectedCount > 0);
-        assignSelectedBtn.setLabel(Text.translatable("quickview.gui.main.assignSelected", selectedCount));
+        assignSelectedBtn.setLabel(Component.translatable("quickview.gui.main.assignSelected", selectedCount));
         assignSelectedBtn.setEnabled(selectedCount > 0);
     }
 
@@ -664,16 +663,16 @@ public class ViewpointGUI extends LightweightGuiDescription {
         if (toDelete.isEmpty()) {
             return;
         }
-        Screen parent = MinecraftClient.getInstance().currentScreen;
+        Screen parent = Minecraft.getInstance().screen;
         ConfirmGUI confirm = new ConfirmGUI(
-                Text.translatable("quickview.gui.confirm.deleteSelected", toDelete.size()),
+                Component.translatable("quickview.gui.confirm.deleteSelected", toDelete.size()),
                 parent,
                 () -> manager.removeViewpoints(toDelete));
-        confirm.setConfirmLabel(Text.translatable("quickview.gui.main.delete"));
+        confirm.setConfirmLabel(Component.translatable("quickview.gui.main.delete"));
         WrapperViewpointScreen screen = new WrapperViewpointScreen(confirm);
         screen.setParent(parent);
         screen.setCloseCallback(this::refreshList);
-        MinecraftClient.getInstance().setScreen(screen);
+        Minecraft.getInstance().setScreen(screen);
     }
 
     @Override

@@ -2,7 +2,7 @@ package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.client.ScreenDrawing;
 import io.github.cottonmc.cotton.gui.widget.icon.Icon;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * 下拉箭头图标（∨ / ∧）：纯矩形像素画，不依赖任何字体字形。
@@ -27,7 +27,7 @@ public class ChevronIcon implements Icon {
     }
 
     @Override
-    public void paint(DrawContext context, int x, int y, int size) {
+    public void paint(GuiGraphics context, int x, int y, int size) {
         int ox = x + (size - SHAPE_W) / 2;
         int oy = y + (size - SHAPE_H) / 2;
         int steps = SHAPE_H / STROKE;

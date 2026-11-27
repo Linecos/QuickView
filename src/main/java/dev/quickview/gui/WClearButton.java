@@ -1,10 +1,10 @@
 package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.widget.WButton;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
 /**
  * 搜索框**内部**右端的「清空」图标（不是独立按钮）。
@@ -15,7 +15,7 @@ import net.minecraft.text.Text;
  */
 public class WClearButton extends WButton {
     /** × 字形；用字体自带字形而不是像素方块，边缘更干净。 */
-    private static final Text GLYPH = Text.translatable("quickview.gui.main.clear");
+    private static final Component GLYPH = Component.translatable("quickview.gui.main.clear");
 
     /** 悬停时字形变纯白。 */
     private static final int HOVER_COLOR = 0xFFFFFFFF;
@@ -27,7 +27,7 @@ public class WClearButton extends WButton {
     private static final int FONT_HEIGHT = 8;
 
     public WClearButton() {
-        super(Text.literal(""));
+        super(Component.literal(""));
     }
 
     /** 不参与焦点：点 × 后焦点仍留在搜索框里，可以继续输入。 */
@@ -37,12 +37,12 @@ public class WClearButton extends WButton {
     }
 
     @Override
-    public void paint(DrawContext context, int x, int y, int mouseX, int mouseY) {
+    public void paint(GuiGraphics context, int x, int y, int mouseX, int mouseY) {
         // 刻意不调 super.paint，也不画悬停底色 —— 只画字形，让它看起来就是输入框的一部分。
         // 悬停反馈用「字形变亮」表达（画底色在黑色输入框上会明显得像一块灰方块，用户反馈要不得）。
-        var textRenderer = MinecraftClient.getInstance().textRenderer;
-        OrderedText glyph = GLYPH.asOrderedText();
-        int width = textRenderer.getWidth(glyph);
+        var textRenderer = Minecraft.getInstance().font;
+        FormattedCharSequence glyph = GLYPH.getVisualOrderText();
+        int width = textRenderer.width(glyph);
         int color;
         if (!isEnabled()) {
             color = DISABLED_COLOR;
@@ -52,7 +52,7 @@ public class WClearButton extends WButton {
             color = ENABLED_COLOR;
         }
 
-        context.drawText(textRenderer, glyph,
+        context.drawString(textRenderer, glyph,
                 x + (getWidth() - width) / 2,
                 y + (getHeight() - FONT_HEIGHT) / 2,
                 color, false);

@@ -1,20 +1,22 @@
 package dev.quickview.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.github.cottonmc.cotton.gui.widget.WButton;
 import io.github.cottonmc.cotton.gui.widget.data.InputResult;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+//? if >=1.21.9 {
+import net.minecraft.client.input.KeyEvent;
+//?}
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 public class WKeyBindingButton extends WButton {
-    private final KeyBinding keyBinding;
+    private final KeyMapping keyBinding;
     private boolean listening = false;
     private Runnable onChange;
 
-    public WKeyBindingButton(KeyBinding keyBinding) {
+    public WKeyBindingButton(KeyMapping keyBinding) {
         this.keyBinding = keyBinding;
         setOnClick(this::startListening);
         refreshLabel();
@@ -31,9 +33,9 @@ public class WKeyBindingButton extends WButton {
     }
 
     public void resetToDefault(int defaultKey) {
-        keyBinding.setBoundKey(InputUtil.Type.KEYSYM.createFromCode(defaultKey));
-        KeyBinding.updateKeysByCode();
-        MinecraftClient.getInstance().options.write();
+        keyBinding.setKey(InputConstants.Type.KEYSYM.getOrCreate(defaultKey));
+        KeyMapping.resetMapping();
+        Minecraft.getInstance().options.save();
         if (listening) {
             stopListening();
         }
@@ -54,16 +56,17 @@ public class WKeyBindingButton extends WButton {
     }
 
     private void applyKey(int glfwKey) {
-        keyBinding.setBoundKey(InputUtil.Type.KEYSYM.createFromCode(glfwKey));
-        KeyBinding.updateKeysByCode();
-        MinecraftClient.getInstance().options.write();
+        keyBinding.setKey(InputConstants.Type.KEYSYM.getOrCreate(glfwKey));
+        KeyMapping.resetMapping();
+        Minecraft.getInstance().options.save();
         stopListening();
         refreshLabel();
         if (onChange != null) onChange.run();
     }
 
+    //? if >=1.21.9 {
     @Override
-    public InputResult onKeyPressed(KeyInput input) {
+    public InputResult onKeyPressed(KeyEvent input) {
         if (!listening) return super.onKeyPressed(input);
 
         if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
@@ -73,6 +76,19 @@ public class WKeyBindingButton extends WButton {
         }
         return InputResult.PROCESSED;
     }
+    //?} else {
+    @Override
+    public InputResult onKeyPressed(int ch, int key, int modifiers) {
+        if (!listening) return super.onKeyPressed(ch, key, modifiers);
+
+        if (ch == GLFW.GLFW_KEY_ESCAPE) {
+            applyKey(GLFW.GLFW_KEY_UNKNOWN);
+        } else {
+            applyKey(ch);
+        }
+        return InputResult.PROCESSED;
+    }
+    //?}
 
     @Override
     public void onFocusLost() {
@@ -85,9 +101,9 @@ public class WKeyBindingButton extends WButton {
 
     private void refreshLabel() {
         if (listening) {
-            setLabel(Text.translatable("quickview.gui.settings.key.prompt"));
+            setLabel(Component.translatable("quickview.gui.settings.key.prompt"));
         } else {
-            setLabel(keyBinding.getBoundKeyLocalizedText());
+            setLabel(keyBinding.getTranslatedKeyMessage());
         }
     }
 }

@@ -29,6 +29,7 @@ public class Viewpoint {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getDimension() { return dimension; }
+    public void setDimension(String dimension) { this.dimension = dimension; }
     public String getGroup() { return group == null ? "" : group; }
     public void setGroup(String group) { this.group = group == null ? "" : group; }
     public double getX() { return x; }

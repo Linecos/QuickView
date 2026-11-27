@@ -2,7 +2,7 @@ package dev.quickview.gui;
 
 import io.github.cottonmc.cotton.gui.client.ScreenDrawing;
 import io.github.cottonmc.cotton.gui.widget.icon.Icon;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * 编辑页删除按钮的垃圾桶图标：纯矩形像素画（与齿轮/箭头同一套画法，零外部资源依赖），
@@ -22,7 +22,7 @@ public class TrashIcon implements Icon {
     private static final int SHAPE_H = 12;
 
     @Override
-    public void paint(DrawContext context, int x, int y, int size) {
+    public void paint(GuiGraphics context, int x, int y, int size) {
         int ox = x + (size - SHAPE_W) / 2;
         int oy = y + (size - SHAPE_H) / 2;
 
@@ -36,7 +36,7 @@ public class TrashIcon implements Icon {
         rect(context, ox + 8, oy + 4, 2, 8);
     }
 
-    private static void rect(DrawContext context, int x, int y, int w, int h) {
+    private static void rect(GuiGraphics context, int x, int y, int w, int h) {
         ScreenDrawing.coloredRect(context, x, y, w, h, COLOR);
     }
 }
